@@ -1,0 +1,9 @@
+port: 8080
+upstream: "http://httpbin.org"
+intercepts:
+  - endpoint: "/api/users"
+    interceptor: "CustomInterceptor"
+  - endpoint: "/api/products"
+    interceptor: "SimpleInterceptor"
+  - endpoint: "/api/logs"
+    interceptor: "LoggingInterceptor"
