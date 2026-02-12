@@ -8,8 +8,9 @@ import (
 	"net/url"
 	"time"
 
+	"llm-monitor/internal/interceptor"
+
 	"github.com/sirupsen/logrus"
-	"llm-sniffer/interceptor"
 )
 
 // ProxyHandler handles proxy requests
@@ -30,7 +31,8 @@ func NewProxyHandler(upstreamURL string, port int) (*ProxyHandler, error) {
 	// Create a custom HTTP client with TLS configuration
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: true, // For demo purposes only
+			// Remove InsecureSkipVerify for production use
+			// InsecureSkipVerify: true, // For demo purposes only
 		},
 		MaxIdleConns:        100,
 		IdleConnTimeout:     90 * time.Second,
@@ -62,25 +64,41 @@ func modifyHeaders(req *http.Request, headers map[string]string) {
 
 // ServeHTTP handles incoming HTTP requests
 func (ph *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Get interceptor for this endpoint
+	intcptor := ph.Manager.GetInterceptor(r.URL.Path)
+	var state interceptor.State
+
+	if intcptor != nil {
+		// Create state for this interceptor
+		state = intcptor.CreateState()
+	}
+
+	err := ph.ServeHTTP2(w, r, intcptor, state)
+
+	// Call onComplete when response is complete
+	if intcptor != nil {
+		if err != nil {
+			logrus.WithError(err).Warn("Request interceptor error")
+			intcptor.OnError(state, err)
+
+		} else {
+			intcptor.OnComplete(state)
+		}
+	}
+}
+
+func (ph *ProxyHandler) ServeHTTP2(w http.ResponseWriter, r *http.Request, intcptor interceptor.Interceptor, state interceptor.State) error {
 	// Create a copy of the request to modify headers
 	req := r.Clone(r.Context())
 	req.URL.Scheme = ph.UpstreamURL.Scheme
 	req.URL.Host = ph.UpstreamURL.Host
 	req.Header.Set("X-Forwarded-For", r.RemoteAddr)
 
-	// Get intcptor for this endpoint
-	intcptor, exists := ph.Manager.GetInterceptor(r.URL.Path)
-	var state interceptor.State
-
-	if exists && intcptor != nil {
-		// Create state for this intcptor
-		state = intcptor.CreateState()
-
-		// Apply request intcptor
+	if intcptor != nil {
+		// Apply request interceptor
 		if err := intcptor.RequestInterceptor(req, state); err != nil {
-			logrus.WithError(err).Warn("Request interceptor error")
 			http.Error(w, "Request interceptor error", http.StatusInternalServerError)
-			return
+			return err
 		}
 	}
 
@@ -93,18 +111,20 @@ func (ph *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Forward the request to upstream
 	resp, err := ph.Client.Do(req)
 	if err != nil {
-		logrus.WithError(err).Warn("Upstream error")
 		http.Error(w, "Upstream error", http.StatusBadGateway)
-		return
+		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if resp.Body != nil {
+			resp.Body.Close()
+		}
+	}()
 
-	// Apply response intcptor if exists
-	if exists && intcptor != nil {
+	// Apply response interceptor if exists
+	if intcptor != nil {
 		if err := intcptor.ResponseInterceptor(resp, state); err != nil {
-			logrus.WithError(err).Warn("Response interceptor error")
 			http.Error(w, "Response interceptor error", http.StatusInternalServerError)
-			return
+			return err
 		}
 	}
 
@@ -122,24 +142,19 @@ func (ph *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if resp.Header.Get("Transfer-Encoding") == "chunked" {
 		err := ph.handleChunkedResponse(w, resp, intcptor, state)
 		if err != nil {
-			logrus.WithError(err).Warn("Error handling chunked response")
-			http.Error(w, "Error handling chunked response", http.StatusInternalServerError)
-			return
+			// Don't send error response here - we already wrote headers
+			return err
 		}
 	} else {
 		// Handle non-chunked responses
 		err := ph.handleRegularResponse(w, resp, intcptor, state)
 		if err != nil {
-			logrus.WithError(err).Warn("Error handling regular response")
-			http.Error(w, "Error handling regular response", http.StatusInternalServerError)
-			return
+			// Don't send error response here - we already wrote headers
+			return err
 		}
 	}
 
-	// Call onComplete when response is complete
-	if intcptor != nil {
-		intcptor.OnComplete(state)
-	}
+	return nil
 }
 
 // handleChunkedResponse handles chunked responses with interceptors
@@ -203,6 +218,7 @@ func (cw *chunkWriter) Write(data []byte) (int, error) {
 			data = processedData
 		} else {
 			logrus.WithError(err).Warn("Error in intercepting chunk")
+			// Continue with original data if chunk processing fails
 		}
 	}
 

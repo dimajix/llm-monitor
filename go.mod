@@ -1,4 +1,4 @@
-module llm-sniffer
+module llm-monitor
 
 go 1.25.7
 

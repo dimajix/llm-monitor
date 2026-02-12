@@ -2,9 +2,9 @@ package main
 
 import (
 	"fmt"
-	"llm-sniffer/config"
-	"llm-sniffer/handler"
-	"llm-sniffer/interceptor"
+	"llm-monitor/internal/config"
+	"llm-monitor/internal/handler"
+	"llm-monitor/internal/interceptor"
 	"net"
 	"net/http"
 
@@ -21,19 +21,8 @@ func main() {
 	// Load configuration
 	cfg, err := config.LoadConfig("config.yaml")
 	if err != nil {
-		logrus.WithError(err).Warn("Could not load config file, using default configuration")
-		logrus.Println("Using default configuration...")
-
-		// Default configuration
-		cfg = &config.Config{
-			Port:     8080,
-			Upstream: "http://httpbin.org",
-			Intercepts: []config.InterceptConfig{
-				{Endpoint: "/api/users", Interceptor: "CustomInterceptor"},
-				{Endpoint: "/api/products", Interceptor: "SimpleInterceptor"},
-				{Endpoint: "/api/logs", Interceptor: "LoggingInterceptor"},
-			},
-		}
+		logrus.WithError(err).Fatal("Could not load config file, terminating")
+		return
 	}
 
 	// Create proxy handler

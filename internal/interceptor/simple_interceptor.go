@@ -36,7 +36,10 @@ func (si *SimpleInterceptor) ChunkInterceptor(chunk []byte, state State) ([]byte
 	return chunk, nil
 }
 
-func (si *SimpleInterceptor) OnComplete(state State) error {
+func (si *SimpleInterceptor) OnComplete(state State) {
 	log.Printf("[%s] Simple completion", si.Name)
-	return nil
+}
+
+func (li *SimpleInterceptor) OnError(state State, _ error) {
+	log.Printf("[%s] Logging completion", li.Name)
 }

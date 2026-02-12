@@ -34,7 +34,10 @@ func (li *LoggingInterceptor) ChunkInterceptor(chunk []byte, state State) ([]byt
 	return chunk, nil
 }
 
-func (li *LoggingInterceptor) OnComplete(state State) error {
+func (li *LoggingInterceptor) OnComplete(state State) {
 	log.Printf("[%s] Logging completion", li.Name)
-	return nil
+}
+
+func (li *LoggingInterceptor) OnError(state State, _ error) {
+	log.Printf("[%s] Logging completion", li.Name)
 }

@@ -30,7 +30,10 @@ type Interceptor interface {
 	ChunkInterceptor(chunk []byte, state State) ([]byte, error)
 
 	// OnComplete is called when the response is complete
-	OnComplete(state State) error
+	OnComplete(state State)
+
+	// OnError is called when an error occurs during processing
+	OnError(state State, err error)
 }
 
 // InterceptorManager manages all interceptors
@@ -54,11 +57,15 @@ func (im *InterceptorManager) RegisterInterceptor(endpoint string, interceptor I
 }
 
 // GetInterceptor retrieves an interceptor for an endpoint
-func (im *InterceptorManager) GetInterceptor(endpoint string) (Interceptor, bool) {
+func (im *InterceptorManager) GetInterceptor(endpoint string) Interceptor {
 	im.mu.RLock()
 	defer im.mu.RUnlock()
 	interceptor, exists := im.interceptors[endpoint]
-	return interceptor, exists
+	if exists {
+		return interceptor
+	} else {
+		return nil
+	}
 }
 
 // CreateInterceptor creates an interceptor instance based on name

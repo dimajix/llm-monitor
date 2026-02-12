@@ -2,6 +2,7 @@ package interceptor
 
 import (
 	"bytes"
+	"log"
 	"net/http"
 	"time"
 
@@ -17,7 +18,7 @@ type CustomInterceptorState struct {
 	Chunks     []string
 }
 
-func NewChunkInterceptorState(id string) *CustomInterceptorState {
+func NewChunkInterceptorState() *CustomInterceptorState {
 	return &CustomInterceptorState{
 		Chunks: make([]string, 0),
 	}
@@ -29,7 +30,7 @@ type CustomInterceptor struct {
 }
 
 func (ci *CustomInterceptor) CreateState() State {
-	return NewChunkInterceptorState(ci.Name)
+	return NewChunkInterceptorState()
 }
 
 // RequestInterceptor modifies the request
@@ -72,7 +73,7 @@ func (ci *CustomInterceptor) ResponseInterceptor(resp *http.Response, state Stat
 }
 
 // ContentInterceptor modifies the content
-func (ci *CustomInterceptor) ContentInterceptor(content []byte, state State) ([]byte, error) {
+func (ci *CustomInterceptor) ContentInterceptor(content []byte, _ State) ([]byte, error) {
 	logrus.WithFields(logrus.Fields{
 		"interceptor": ci.Name,
 		"bytes":       len(content),
@@ -106,7 +107,7 @@ func (ci *CustomInterceptor) ChunkInterceptor(chunk []byte, state State) ([]byte
 }
 
 // OnComplete is called when response is complete
-func (ci *CustomInterceptor) OnComplete(state State) error {
+func (ci *CustomInterceptor) OnComplete(state State) {
 	chunkCount := 0
 	totalSize := 0
 
@@ -121,6 +122,8 @@ func (ci *CustomInterceptor) OnComplete(state State) error {
 		"total_bytes":  totalSize,
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}).Info("Response complete")
+}
 
-	return nil
+func (li *CustomInterceptor) OnError(state State, _ error) {
+	log.Printf("[%s] Logging completion", li.Name)
 }
