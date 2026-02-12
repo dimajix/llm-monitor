@@ -36,36 +36,36 @@ type Interceptor interface {
 	OnError(state State, err error)
 }
 
-// InterceptorManager manages all interceptors
-type InterceptorManager struct {
+// Manager InterceptorManager manages all interceptors
+type Manager struct {
 	interceptors map[string]Interceptor
 	mu           sync.RWMutex
 }
 
 // NewInterceptorManager creates a new interceptor manager
-func NewInterceptorManager() *InterceptorManager {
-	return &InterceptorManager{
+func NewInterceptorManager() *Manager {
+	return &Manager{
 		interceptors: make(map[string]Interceptor),
 	}
 }
 
 // RegisterInterceptor registers an interceptor for a specific endpoint
-func (im *InterceptorManager) RegisterInterceptor(endpoint string, interceptor Interceptor) {
+func (im *Manager) RegisterInterceptor(endpoint string, interceptor Interceptor) {
 	im.mu.Lock()
 	defer im.mu.Unlock()
 	im.interceptors[endpoint] = interceptor
 }
 
 // GetInterceptor retrieves an interceptor for an endpoint
-func (im *InterceptorManager) GetInterceptor(endpoint string) Interceptor {
+func (im *Manager) GetInterceptor(endpoint string) Interceptor {
 	im.mu.RLock()
 	defer im.mu.RUnlock()
 	interceptor, exists := im.interceptors[endpoint]
 	if exists {
 		return interceptor
-	} else {
-		return nil
 	}
+
+	return nil
 }
 
 // CreateInterceptor creates an interceptor instance based on name

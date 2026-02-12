@@ -16,7 +16,7 @@ import (
 // ProxyHandler handles proxy requests
 type ProxyHandler struct {
 	UpstreamURL *url.URL
-	Manager     *interceptor.InterceptorManager
+	Manager     *interceptor.Manager
 	Client      *http.Client
 	Port        int
 }
@@ -130,7 +130,7 @@ func (ph *ProxyHandler) ServeHTTP2(w http.ResponseWriter, r *http.Request, intcp
 	}
 	defer func() {
 		if resp.Body != nil {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 		}
 	}()
 

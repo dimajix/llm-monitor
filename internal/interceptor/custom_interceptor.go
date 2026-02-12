@@ -123,6 +123,6 @@ func (ci *CustomInterceptor) OnComplete(state State) {
 	}).Info("Response complete")
 }
 
-func (li *CustomInterceptor) OnError(state State, _ error) {
-	logrus.Printf("[%s] Logging completion", li.Name)
+func (ci *CustomInterceptor) OnError(_ State, _ error) {
+	logrus.Printf("[%s] Logging completion", ci.Name)
 }
