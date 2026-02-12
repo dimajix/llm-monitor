@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"llm-monitor/internal/config"
 	"llm-monitor/internal/handler"
@@ -74,7 +75,7 @@ func main() {
 	logrus.Println("Press Ctrl+C to stop")
 
 	// Start the server
-	if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
+	if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		logrus.WithError(err).Fatal("Server error")
 	}
 
