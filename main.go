@@ -2,21 +2,27 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"llm-sniffer/config"
+	"llm-sniffer/handler"
+	"llm-sniffer/interceptor"
 	"net"
 	"net/http"
 
-	"proxy/config"
-	"proxy/handler"
-	"proxy/interceptor"
+	"github.com/sirupsen/logrus"
 )
 
 func main() {
+	// Set log level
+	logrus.SetLevel(logrus.InfoLevel)
+
+	// Set log format to JSON for better structured logging
+	logrus.SetFormatter(&logrus.JSONFormatter{})
+
 	// Load configuration
 	cfg, err := config.LoadConfig("config.yaml")
 	if err != nil {
-		log.Printf("Warning: Could not load config file: %v", err)
-		log.Println("Using default configuration...")
+		logrus.WithError(err).Warn("Could not load config file, using default configuration")
+		logrus.Println("Using default configuration...")
 
 		// Default configuration
 		cfg = &config.Config{
@@ -33,14 +39,17 @@ func main() {
 	// Create proxy handler
 	proxy, err := handler.NewProxyHandler(cfg.Upstream, cfg.Port)
 	if err != nil {
-		log.Fatal(err)
+		logrus.WithError(err).Fatal("Failed to create proxy handler")
 	}
 
 	// Register interceptors based on configuration
 	for _, intercept := range cfg.Intercepts {
 		interceptorInstance := interceptor.CreateInterceptor(intercept.Interceptor)
 		proxy.RegisterInterceptor(intercept.Endpoint, interceptorInstance)
-		log.Printf("Registered interceptor %s for endpoint %s", intercept.Interceptor, intercept.Endpoint)
+		logrus.WithFields(logrus.Fields{
+			"interceptor": intercept.Interceptor,
+			"endpoint":    intercept.Endpoint,
+		}).Info("Registered interceptor")
 	}
 
 	// Create a custom server
@@ -52,25 +61,34 @@ func main() {
 	// Set up a custom listener for better control
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.Port))
 	if err != nil {
-		log.Fatal(err)
+		logrus.WithError(err).Fatal("Failed to create listener")
 	}
 
-	log.Println("Proxy server starting...")
-	log.Printf("Listening on port %d", cfg.Port)
-	log.Printf("Upstream server: %s", cfg.Upstream)
+	logrus.Println("Proxy server starting...")
+	logrus.WithFields(logrus.Fields{
+		"port":     cfg.Port,
+		"upstream": cfg.Upstream,
+	}).Info("Server configuration")
 
 	if len(cfg.Intercepts) > 0 {
-		log.Println("Endpoints with interceptors:")
+		logrus.Println("Endpoints with interceptors:")
 		for _, intercept := range cfg.Intercepts {
-			log.Printf("  %s -> %s", intercept.Endpoint, intercept.Interceptor)
+			logrus.WithFields(logrus.Fields{
+				"endpoint":    intercept.Endpoint,
+				"interceptor": intercept.Interceptor,
+			}).Info("Interceptor configuration")
 		}
 	} else {
-		log.Println("No interceptors configured")
+		logrus.Println("No interceptors configured")
 	}
-	log.Println("Press Ctrl+C to stop")
+
+	logrus.Println("Press Ctrl+C to stop")
 
 	// Start the server
 	if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
-		log.Fatalf("Server error: %v", err)
+		logrus.WithError(err).Fatal("Server error")
 	}
+
+	// Log graceful shutdown
+	logrus.Println("Server stopped gracefully")
 }

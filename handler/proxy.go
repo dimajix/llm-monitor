@@ -1,19 +1,15 @@
 package handler
 
 import (
-	"bytes"
 	"crypto/tls"
 	"fmt"
 	"io"
-	"log"
-	"net"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
-	"sync"
 	"time"
 
-	"proxy/interceptor"
+	"github.com/sirupsen/logrus"
+	"llm-sniffer/interceptor"
 )
 
 // ProxyHandler handles proxy requests
@@ -72,16 +68,17 @@ func (ph *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	req.URL.Host = ph.UpstreamURL.Host
 	req.Header.Set("X-Forwarded-For", r.RemoteAddr)
 
-	// Get interceptor for this endpoint
-	interceptor, exists := ph.Manager.GetInterceptor(r.URL.Path)
+	// Get intcptor for this endpoint
+	intcptor, exists := ph.Manager.GetInterceptor(r.URL.Path)
 	var state interceptor.InterceptorState
 
-	if exists && interceptor != nil {
-		// Create state for this interceptor
-		state = interceptor.CreateState()
+	if exists && intcptor != nil {
+		// Create state for this intcptor
+		state = intcptor.CreateState()
 
-		// Apply request interceptor
-		if err := interceptor.RequestInterceptor(req, state); err != nil {
+		// Apply request intcptor
+		if err := intcptor.RequestInterceptor(req, state); err != nil {
+			logrus.WithError(err).Warn("Request interceptor error")
 			http.Error(w, "Request interceptor error", http.StatusInternalServerError)
 			return
 		}
@@ -96,14 +93,16 @@ func (ph *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Forward the request to upstream
 	resp, err := ph.Client.Do(req)
 	if err != nil {
+		logrus.WithError(err).Warn("Upstream error")
 		http.Error(w, "Upstream error", http.StatusBadGateway)
 		return
 	}
 	defer resp.Body.Close()
 
-	// Apply response interceptor if exists
-	if exists && interceptor != nil {
-		if err := interceptor.ResponseInterceptor(resp, state); err != nil {
+	// Apply response intcptor if exists
+	if exists && intcptor != nil {
+		if err := intcptor.ResponseInterceptor(resp, state); err != nil {
+			logrus.WithError(err).Warn("Response interceptor error")
 			http.Error(w, "Response interceptor error", http.StatusInternalServerError)
 			return
 		}
@@ -121,15 +120,30 @@ func (ph *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Handle chunked responses
 	if resp.Header.Get("Transfer-Encoding") == "chunked" {
-		ph.handleChunkedResponse(w, resp, interceptor, state)
+		err := ph.handleChunkedResponse(w, resp, intcptor, state)
+		if err != nil {
+			logrus.WithError(err).Warn("Error handling chunked response")
+			http.Error(w, "Error handling chunked response", http.StatusInternalServerError)
+			return
+		}
 	} else {
 		// Handle non-chunked responses
-		ph.handleRegularResponse(w, resp, interceptor, state)
+		err := ph.handleRegularResponse(w, resp, intcptor, state)
+		if err != nil {
+			logrus.WithError(err).Warn("Error handling regular response")
+			http.Error(w, "Error handling regular response", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	// Call onComplete when response is complete
+	if intcptor != nil {
+		intcptor.OnComplete(state)
 	}
 }
 
 // handleChunkedResponse handles chunked responses with interceptors
-func (ph *ProxyHandler) handleChunkedResponse(w http.ResponseWriter, resp *http.Response, interceptor interceptor.Interceptor, state interceptor.InterceptorState) {
+func (ph *ProxyHandler) handleChunkedResponse(w http.ResponseWriter, resp *http.Response, interceptor interceptor.Interceptor, state interceptor.InterceptorState) error {
 	// Create a custom response writer that intercepts chunks
 	chunkWriter := &chunkWriter{
 		ResponseWriter: w,
@@ -140,37 +154,38 @@ func (ph *ProxyHandler) handleChunkedResponse(w http.ResponseWriter, resp *http.
 	// Copy response body to our chunk writer
 	_, err := io.Copy(chunkWriter, resp.Body)
 	if err != nil {
-		log.Printf("Error copying chunked response: %v", err)
-		return
+		logrus.WithError(err).Warn("Error copying chunked response")
+		return err
 	}
 
-	// Call onComplete when response is complete
-	if interceptor != nil {
-		interceptor.OnComplete(state)
-	}
+	return nil
 }
 
 // handleRegularResponse handles non-chunked responses
-func (ph *ProxyHandler) handleRegularResponse(w http.ResponseWriter, resp *http.Response, interceptor interceptor.Interceptor, state interceptor.InterceptorState) {
+func (ph *ProxyHandler) handleRegularResponse(w http.ResponseWriter, resp *http.Response, interceptor interceptor.Interceptor, state interceptor.InterceptorState) error {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		http.Error(w, "Error reading response body", http.StatusInternalServerError)
-		return
+		logrus.WithError(err).Warn("Error reading response body")
+		return err
 	}
 
 	// Apply content interceptor if exists
 	if interceptor != nil {
 		if processedBody, err := interceptor.ContentInterceptor(body, state); err == nil {
 			body = processedBody
+		} else {
+			logrus.WithError(err).Warn("Error in intercepting body")
 		}
 	}
 
 	// Write the final response
 	_, err = w.Write(body)
 	if err != nil {
-		log.Printf("Error writing response: %v", err)
-		return
+		logrus.WithError(err).Warn("Error writing response")
+		return err
 	}
+
+	return nil
 }
 
 // chunkWriter intercepts chunks of data
@@ -184,11 +199,11 @@ type chunkWriter struct {
 func (cw *chunkWriter) Write(data []byte) (int, error) {
 	// If there's an interceptor, process the chunk
 	if cw.interceptor != nil {
-		processedData, err := cw.interceptor.ChunkInterceptor(data, cw.state)
-		if err != nil {
-			return 0, err
+		if processedData, err := cw.interceptor.ChunkInterceptor(data, cw.state); err == nil {
+			data = processedData
+		} else {
+			logrus.WithError(err).Warn("Error in intercepting chunk")
 		}
-		data = processedData
 	}
 
 	// Write the processed chunk

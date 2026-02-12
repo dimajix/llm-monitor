@@ -2,9 +2,10 @@ package interceptor
 
 import (
 	"bytes"
-	"fmt"
-	"log"
 	"net/http"
+	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 // CustomInterceptor implements the Interceptor interface
@@ -18,7 +19,13 @@ func (ci *CustomInterceptor) CreateState() InterceptorState {
 
 // RequestInterceptor modifies the request
 func (ci *CustomInterceptor) RequestInterceptor(req *http.Request, state InterceptorState) error {
-	log.Printf("[%s] Request intercepted: %s %s", ci.Name, req.Method, req.URL.Path)
+	logrus.WithFields(logrus.Fields{
+		"interceptor": ci.Name,
+		"method":      req.Method,
+		"path":        req.URL.Path,
+		"timestamp":   time.Now().Format(time.RFC3339),
+	}).Info("Request intercepted")
+
 	// Add custom header
 	req.Header.Set("X-Intercepted-By", ci.Name)
 
@@ -32,13 +39,18 @@ func (ci *CustomInterceptor) RequestInterceptor(req *http.Request, state Interce
 
 // ResponseInterceptor modifies the response
 func (ci *CustomInterceptor) ResponseInterceptor(resp *http.Response, state InterceptorState) error {
-	log.Printf("[%s] Response intercepted: Status %d", ci.Name, resp.StatusCode)
+	logrus.WithFields(logrus.Fields{
+		"interceptor": ci.Name,
+		"status":      resp.StatusCode,
+		"timestamp":   time.Now().Format(time.RFC3339),
+	}).Info("Response intercepted")
+
 	// Add custom header
 	resp.Header.Set("X-Intercepted-Response", ci.Name)
 
 	// Update state
 	if chunkState, ok := state.(*ChunkInterceptorState); ok {
-		chunkState.TotalSize = resp.ContentLength
+		chunkState.TotalSize = int(resp.ContentLength)
 	}
 
 	return nil
@@ -46,7 +58,12 @@ func (ci *CustomInterceptor) ResponseInterceptor(resp *http.Response, state Inte
 
 // ContentInterceptor modifies the content
 func (ci *CustomInterceptor) ContentInterceptor(content []byte, state InterceptorState) ([]byte, error) {
-	log.Printf("[%s] Content intercepted: %d bytes", ci.Name, len(content))
+	logrus.WithFields(logrus.Fields{
+		"interceptor": ci.Name,
+		"bytes":       len(content),
+		"timestamp":   time.Now().Format(time.RFC3339),
+	}).Info("Content intercepted")
+
 	// Simple content modification example
 	modified := bytes.ReplaceAll(content, []byte("Hello"), []byte("Hi"))
 	return modified, nil
@@ -54,7 +71,11 @@ func (ci *CustomInterceptor) ContentInterceptor(content []byte, state Intercepto
 
 // ChunkInterceptor processes chunks of content
 func (ci *CustomInterceptor) ChunkInterceptor(chunk []byte, state InterceptorState) ([]byte, error) {
-	log.Printf("[%s] Chunk intercepted: %d bytes", ci.Name, len(chunk))
+	logrus.WithFields(logrus.Fields{
+		"interceptor": ci.Name,
+		"bytes":       len(chunk),
+		"timestamp":   time.Now().Format(time.RFC3339),
+	}).Info("Chunk intercepted")
 
 	// Update state
 	if chunkState, ok := state.(*ChunkInterceptorState); ok {
@@ -71,19 +92,20 @@ func (ci *CustomInterceptor) ChunkInterceptor(chunk []byte, state InterceptorSta
 
 // OnComplete is called when response is complete
 func (ci *CustomInterceptor) OnComplete(state InterceptorState) error {
-	log.Printf("[%s] Response complete. Total chunks: %d, Total bytes: %d", ci.Name,
-		func() int {
-			if chunkState, ok := state.(*ChunkInterceptorState); ok {
-				return chunkState.ChunkCount
-			}
-			return 0
-		}(),
-		func() int {
-			if chunkState, ok := state.(*ChunkInterceptorState); ok {
-				return chunkState.TotalSize
-			}
-			return 0
-		}())
+	chunkCount := 0
+	totalSize := 0
+
+	if chunkState, ok := state.(*ChunkInterceptorState); ok {
+		chunkCount = chunkState.ChunkCount
+		totalSize = chunkState.TotalSize
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"interceptor":  ci.Name,
+		"total_chunks": chunkCount,
+		"total_bytes":  totalSize,
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}).Info("Response complete")
 
 	return nil
 }
