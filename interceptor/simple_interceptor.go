@@ -10,33 +10,33 @@ type SimpleInterceptor struct {
 	Name string
 }
 
-func (si *SimpleInterceptor) CreateState() InterceptorState {
-	return &BaseInterceptorState{ID: si.Name}
+func (si *SimpleInterceptor) CreateState() State {
+	return &EmptyState{}
 }
 
-func (si *SimpleInterceptor) RequestInterceptor(req *http.Request, state InterceptorState) error {
+func (si *SimpleInterceptor) RequestInterceptor(req *http.Request, state State) error {
 	log.Printf("[%s] Simple request interceptor", si.Name)
 	req.Header.Set("X-Simple-Interceptor", si.Name)
 	return nil
 }
 
-func (si *SimpleInterceptor) ResponseInterceptor(resp *http.Response, state InterceptorState) error {
+func (si *SimpleInterceptor) ResponseInterceptor(resp *http.Response, state State) error {
 	log.Printf("[%s] Simple response interceptor", si.Name)
 	resp.Header.Set("X-Simple-Response", si.Name)
 	return nil
 }
 
-func (si *SimpleInterceptor) ContentInterceptor(content []byte, state InterceptorState) ([]byte, error) {
+func (si *SimpleInterceptor) ContentInterceptor(content []byte, state State) ([]byte, error) {
 	log.Printf("[%s] Simple content interceptor", si.Name)
 	return content, nil
 }
 
-func (si *SimpleInterceptor) ChunkInterceptor(chunk []byte, state InterceptorState) ([]byte, error) {
+func (si *SimpleInterceptor) ChunkInterceptor(chunk []byte, state State) ([]byte, error) {
 	log.Printf("[%s] Simple chunk interceptor", si.Name)
 	return chunk, nil
 }
 
-func (si *SimpleInterceptor) OnComplete(state InterceptorState) error {
+func (si *SimpleInterceptor) OnComplete(state State) error {
 	log.Printf("[%s] Simple completion", si.Name)
 	return nil
 }

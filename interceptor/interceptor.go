@@ -5,72 +5,32 @@ import (
 	"sync"
 )
 
-// InterceptorState is a generic interface for state management
-type InterceptorState interface {
-	GetID() string
-	SetID(id string)
-	GetData() []byte
-	SetData(data []byte)
-}
+// State is now an empty interface
+type State interface{}
 
-// BaseInterceptorState implements the basic InterceptorState interface
-type BaseInterceptorState struct {
-	ID   string
-	Data []byte
-}
-
-func (bis *BaseInterceptorState) GetID() string {
-	return bis.ID
-}
-
-func (bis *BaseInterceptorState) SetID(id string) {
-	bis.ID = id
-}
-
-func (bis *BaseInterceptorState) GetData() []byte {
-	return bis.Data
-}
-
-func (bis *BaseInterceptorState) SetData(data []byte) {
-	bis.Data = data
-}
-
-// ChunkInterceptorState extends the base state with chunk-specific information
-type ChunkInterceptorState struct {
-	*BaseInterceptorState
-	IsChunked  bool
-	ChunkCount int
-	TotalSize  int
-	LastChunk  bool
-	Chunks     []string
-}
-
-func NewChunkInterceptorState(id string) *ChunkInterceptorState {
-	return &ChunkInterceptorState{
-		BaseInterceptorState: &BaseInterceptorState{ID: id},
-		Chunks:               make([]string, 0),
-	}
-}
+// EmptyState implements the State interface with no additional fields
+// This can be used by simple interceptors that don't need to track any specific information
+type EmptyState struct{}
 
 // Interceptor defines the interface for interceptors
 type Interceptor interface {
 	// CreateState creates a new state object for this interceptor
-	CreateState() InterceptorState
+	CreateState() State
 
 	// RequestInterceptor modifies the request before forwarding
-	RequestInterceptor(req *http.Request, state InterceptorState) error
+	RequestInterceptor(req *http.Request, state State) error
 
 	// ResponseInterceptor modifies the response before sending to client
-	ResponseInterceptor(resp *http.Response, state InterceptorState) error
+	ResponseInterceptor(resp *http.Response, state State) error
 
 	// ContentInterceptor modifies the content before sending to client
-	ContentInterceptor(content []byte, state InterceptorState) ([]byte, error)
+	ContentInterceptor(content []byte, state State) ([]byte, error)
 
 	// ChunkInterceptor processes chunks of content (for chunked responses)
-	ChunkInterceptor(chunk []byte, state InterceptorState) ([]byte, error)
+	ChunkInterceptor(chunk []byte, state State) ([]byte, error)
 
 	// OnComplete is called when the response is complete
-	OnComplete(state InterceptorState) error
+	OnComplete(state State) error
 }
 
 // InterceptorManager manages all interceptors

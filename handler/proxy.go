@@ -70,7 +70,7 @@ func (ph *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Get intcptor for this endpoint
 	intcptor, exists := ph.Manager.GetInterceptor(r.URL.Path)
-	var state interceptor.InterceptorState
+	var state interceptor.State
 
 	if exists && intcptor != nil {
 		// Create state for this intcptor
@@ -143,7 +143,7 @@ func (ph *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleChunkedResponse handles chunked responses with interceptors
-func (ph *ProxyHandler) handleChunkedResponse(w http.ResponseWriter, resp *http.Response, interceptor interceptor.Interceptor, state interceptor.InterceptorState) error {
+func (ph *ProxyHandler) handleChunkedResponse(w http.ResponseWriter, resp *http.Response, interceptor interceptor.Interceptor, state interceptor.State) error {
 	// Create a custom response writer that intercepts chunks
 	chunkWriter := &chunkWriter{
 		ResponseWriter: w,
@@ -162,7 +162,7 @@ func (ph *ProxyHandler) handleChunkedResponse(w http.ResponseWriter, resp *http.
 }
 
 // handleRegularResponse handles non-chunked responses
-func (ph *ProxyHandler) handleRegularResponse(w http.ResponseWriter, resp *http.Response, interceptor interceptor.Interceptor, state interceptor.InterceptorState) error {
+func (ph *ProxyHandler) handleRegularResponse(w http.ResponseWriter, resp *http.Response, interceptor interceptor.Interceptor, state interceptor.State) error {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		logrus.WithError(err).Warn("Error reading response body")
@@ -192,7 +192,7 @@ func (ph *ProxyHandler) handleRegularResponse(w http.ResponseWriter, resp *http.
 type chunkWriter struct {
 	http.ResponseWriter
 	interceptor interceptor.Interceptor
-	state       interceptor.InterceptorState
+	state       interceptor.State
 }
 
 // Write intercepts chunks and applies chunk interceptors
