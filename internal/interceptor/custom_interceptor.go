@@ -2,7 +2,6 @@ package interceptor
 
 import (
 	"bytes"
-	"log"
 	"net/http"
 	"time"
 
@@ -125,5 +124,5 @@ func (ci *CustomInterceptor) OnComplete(state State) {
 }
 
 func (li *CustomInterceptor) OnError(state State, _ error) {
-	log.Printf("[%s] Logging completion", li.Name)
+	logrus.Printf("[%s] Logging completion", li.Name)
 }

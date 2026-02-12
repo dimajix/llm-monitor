@@ -21,6 +21,21 @@ type ProxyHandler struct {
 	Port        int
 }
 
+func createHttpTransport() *http.Transport {
+	// Create a custom HTTP client with TLS configuration
+	return &http.Transport{
+		TLSClientConfig: &tls.Config{
+			// Remove InsecureSkipVerify for production use
+			// InsecureSkipVerify: true, // For demo purposes only
+		},
+		MaxIdleConns:        100,
+		IdleConnTimeout:     90 * time.Second,
+		TLSHandshakeTimeout: 10 * time.Second,
+		// Configure proxy using standard environment variables
+		Proxy: http.ProxyFromEnvironment,
+	}
+}
+
 // NewProxyHandler creates a new proxy handler
 func NewProxyHandler(upstreamURL string, port int) (*ProxyHandler, error) {
 	parsedURL, err := url.Parse(upstreamURL)
@@ -29,15 +44,12 @@ func NewProxyHandler(upstreamURL string, port int) (*ProxyHandler, error) {
 	}
 
 	// Create a custom HTTP client with TLS configuration
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			// Remove InsecureSkipVerify for production use
-			// InsecureSkipVerify: true, // For demo purposes only
-		},
-		MaxIdleConns:        100,
-		IdleConnTimeout:     90 * time.Second,
-		TLSHandshakeTimeout: 10 * time.Second,
-	}
+	transport := createHttpTransport()
+
+	logrus.WithFields(logrus.Fields{
+		"port":     port,
+		"upstream": upstreamURL,
+	}).Info("Server configuration")
 
 	return &ProxyHandler{
 		UpstreamURL: parsedURL,
@@ -90,9 +102,16 @@ func (ph *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (ph *ProxyHandler) ServeHTTP2(w http.ResponseWriter, r *http.Request, intcptor interceptor.Interceptor, state interceptor.State) error {
 	// Create a copy of the request to modify headers
 	req := r.Clone(r.Context())
+	req.RequestURI = ""
+	req.Host = ""
+	req.RemoteAddr = ""
 	req.URL.Scheme = ph.UpstreamURL.Scheme
 	req.URL.Host = ph.UpstreamURL.Host
-	req.Header.Set("X-Forwarded-For", r.RemoteAddr)
+	modifyHeaders(req, map[string]string{
+		"X-Forwarded-Proto": "http",
+		"X-Forwarded-Host":  r.Host,
+		"X-Forwarded-For":   r.RemoteAddr,
+	})
 
 	if intcptor != nil {
 		// Apply request interceptor
@@ -102,13 +121,8 @@ func (ph *ProxyHandler) ServeHTTP2(w http.ResponseWriter, r *http.Request, intcp
 		}
 	}
 
-	// Modify headers if needed
-	modifyHeaders(req, map[string]string{
-		"X-Forwarded-Proto": "http",
-		"X-Forwarded-Host":  r.Host,
-	})
-
 	// Forward the request to upstream
+	logrus.Printf(req.URL.String())
 	resp, err := ph.Client.Do(req)
 	if err != nil {
 		http.Error(w, "Upstream error", http.StatusBadGateway)

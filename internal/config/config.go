@@ -7,20 +7,26 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// Config holds the application configuration
+// Config represents the application configuration
 type Config struct {
-	Port       int               `yaml:"port"`
-	Upstream   string            `yaml:"upstream"`
-	Intercepts []InterceptConfig `yaml:"intercepts"`
+	Upstream   string      `yaml:"upstream"`
+	Port       int         `yaml:"port"`
+	Intercepts []Intercept `yaml:"intercepts"`
+	Logging    Logging     `yaml:"logging,omitempty"`
 }
 
-// InterceptConfig represents a single interceptor configuration
-type InterceptConfig struct {
+// Intercept represents an interceptor configuration
+type Intercept struct {
 	Endpoint    string `yaml:"endpoint"`
 	Interceptor string `yaml:"interceptor"`
 }
 
-// LoadConfig loads configuration from YAML file
+// Logging represents the logging configuration
+type Logging struct {
+	Format string `yaml:"format,omitempty"`
+}
+
+// LoadConfig loads the configuration from a YAML file
 func LoadConfig(filename string) (*Config, error) {
 	data, err := os.ReadFile(filename)
 	if err != nil {
@@ -30,7 +36,12 @@ func LoadConfig(filename string) (*Config, error) {
 	var config Config
 	err = yaml.Unmarshal(data, &config)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing config file: %v", err)
+		return nil, err
+	}
+
+	// Set default logging format if not specified
+	if config.Logging.Format == "" {
+		config.Logging.Format = "text"
 	}
 
 	return &config, nil
