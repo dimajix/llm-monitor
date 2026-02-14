@@ -1,0 +1,37 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - DB_USER=llm_user
+      - DB_PASSWORD=llm_pass
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=llm_monitor
+      - UPSTREAM_URL=http://ollama:11434  # Example upstream
+    volumes:
+      - ./configs/config.yaml:/app/config/config.yaml
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=llm_user
+      - POSTGRES_PASSWORD=llm_pass
+      - POSTGRES_DB=llm_monitor
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./internal/storage/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U llm_user -d llm_monitor"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

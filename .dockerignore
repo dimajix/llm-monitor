@@ -1,0 +1,33 @@
+# Dependency directories
+vendor/
+
+# Binary files
+llm-monitor
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test and coverage files
+*_test.go
+coverage.out
+
+# Docker files
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Git files
+.git
+.gitignore
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Configs and logs (if any local ones exist)
+*.log
+# configs/config.yaml is not ignored because it might be needed if not mounted

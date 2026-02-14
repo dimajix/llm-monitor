@@ -1,7 +1,7 @@
 logging:
   format: "json"  # or "text" for text format
 port: 8080
-upstream: "http://localhost:11434"
+upstream: "${UPSTREAM_URL:-http://localhost:11434}"
 intercepts:
   - endpoint: "/api/users"
     interceptor: "CustomInterceptor"
