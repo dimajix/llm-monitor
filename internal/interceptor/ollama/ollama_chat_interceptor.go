@@ -188,6 +188,13 @@ func (oi *ChatInterceptor) saveToStorage(ctx context.Context, ollamaState *chatS
 
 	// If we found a branch, we add the assistant response to it.
 	if branchID != "" {
+		// We need the conversation ID for the message. Since we found the branch,
+		// we should ideally get the conversation ID from that branch.
+		// For now, if conversationID is empty, we can try to use AddMessage with branchID only if the storage supports it.
+		// Looking at AddMessage signature: AddMessage(ctx, conversationID, branchID, role, content, statusCode, errorText)
+		// If we pass empty conversationID to AddMessage, it might also fail if it's used in a JOIN or WHERE with UUID type.
+
+		// Let's check AddMessage implementation in postgres.go
 		_, err = oi.Storage.AddMessage(ctx, "", branchID, ollamaState.response.Message.Role, ollamaState.response.Message.Content, ollamaState.statusCode, "")
 		if err != nil {
 			logrus.WithError(err).Warnf("[%s] Could not add assistant message to storage", oi.Name)

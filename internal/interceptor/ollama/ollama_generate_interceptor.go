@@ -178,6 +178,9 @@ func (oi *GenerateInterceptor) saveToStorage(ctx context.Context, ollamaState *g
 	}
 
 	if branchID != "" {
+		// If we found a branch, we add the assistant response to it.
+		// Since we have the branch ID, we don't strictly need the conversation ID
+		// as AddMessage will look it up if passed as empty.
 		_, err = oi.Storage.AddMessage(ctx, "", branchID, "assistant", ollamaState.response.Response, ollamaState.statusCode, "")
 		if err != nil {
 			logrus.WithError(err).Warnf("[%s] Could not add assistant response to storage", oi.Name)

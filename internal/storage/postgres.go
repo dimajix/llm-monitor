@@ -157,10 +157,17 @@ func (s *PostgresStorage) AddMessage(ctx context.Context, conversationID string,
 	newHash := computeHash(lastHash, role, content)
 
 	var msg Message
-	err = tx.QueryRowContext(ctx,
-		"INSERT INTO messages (conversation_id, branch_id, role, content, sequence_number, cumulative_hash, upstream_status_code, upstream_error) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, conversation_id, branch_id, role, content, sequence_number, cumulative_hash, created_at, upstream_status_code, upstream_error",
-		conversationID, branchID, role, content, nextSeq, newHash, statusCode, errorText,
-	).Scan(&msg.ID, &msg.ConversationID, &msg.BranchID, &msg.Role, &msg.Content, &msg.SequenceNumber, &msg.CumulativeHash, &msg.CreatedAt, &msg.UpstreamStatusCode, &msg.UpstreamError)
+	if conversationID != "" {
+		err = tx.QueryRowContext(ctx,
+			"INSERT INTO messages (conversation_id, branch_id, role, content, sequence_number, cumulative_hash, upstream_status_code, upstream_error) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, conversation_id, branch_id, role, content, sequence_number, cumulative_hash, created_at, upstream_status_code, upstream_error",
+			conversationID, branchID, role, content, nextSeq, newHash, statusCode, errorText,
+		).Scan(&msg.ID, &msg.ConversationID, &msg.BranchID, &msg.Role, &msg.Content, &msg.SequenceNumber, &msg.CumulativeHash, &msg.CreatedAt, &msg.UpstreamStatusCode, &msg.UpstreamError)
+	} else {
+		err = tx.QueryRowContext(ctx,
+			"INSERT INTO messages (conversation_id, branch_id, role, content, sequence_number, cumulative_hash, upstream_status_code, upstream_error) VALUES ((SELECT conversation_id FROM branches WHERE id = $1), $1, $2, $3, $4, $5, $6, $7) RETURNING id, conversation_id, branch_id, role, content, sequence_number, cumulative_hash, created_at, upstream_status_code, upstream_error",
+			branchID, role, content, nextSeq, newHash, statusCode, errorText,
+		).Scan(&msg.ID, &msg.ConversationID, &msg.BranchID, &msg.Role, &msg.Content, &msg.SequenceNumber, &msg.CumulativeHash, &msg.CreatedAt, &msg.UpstreamStatusCode, &msg.UpstreamError)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -221,10 +228,19 @@ func (s *PostgresStorage) FindBranchByHistory(ctx context.Context, conversationI
 	}
 
 	var branchID string
-	err := s.db.QueryRowContext(ctx,
-		"SELECT branch_id FROM messages WHERE conversation_id = $1 AND cumulative_hash = $2",
-		conversationID, currentHash,
-	).Scan(&branchID)
+	var err error
+	if conversationID != "" {
+		err = s.db.QueryRowContext(ctx,
+			"SELECT branch_id FROM messages WHERE conversation_id = $1 AND cumulative_hash = $2",
+			conversationID, currentHash,
+		).Scan(&branchID)
+	} else {
+		err = s.db.QueryRowContext(ctx,
+			"SELECT branch_id FROM messages WHERE cumulative_hash = $1",
+			currentHash,
+		).Scan(&branchID)
+	}
+
 	if err == sql.ErrNoRows {
 		return "", nil
 	}
