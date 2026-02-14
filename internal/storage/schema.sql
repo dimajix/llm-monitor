@@ -46,3 +46,11 @@ CREATE INDEX idx_messages_branch_seq ON messages (branch_id, sequence_number);
 CREATE INDEX idx_messages_conversation ON messages (conversation_id);
 CREATE INDEX idx_messages_hash ON messages (cumulative_hash);
 CREATE INDEX idx_messages_children ON messages USING GIN (child_branch_ids);
+
+-- Schema versioning
+CREATE TABLE IF NOT EXISTS schema_version (
+    version INT PRIMARY KEY,
+    applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO schema_version (version) VALUES (1) ON CONFLICT (version) DO NOTHING;

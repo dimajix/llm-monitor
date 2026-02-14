@@ -4,8 +4,10 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	_ "embed"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 
 	_ "github.com/lib/pq"
 	"github.com/sirupsen/logrus"
@@ -15,12 +17,46 @@ type PostgresStorage struct {
 	db *sql.DB
 }
 
+//go:embed schema.sql
+var schemaSQL string
+
 func NewPostgresStorage(dsn string) (*PostgresStorage, error) {
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
 		return nil, err
 	}
-	return &PostgresStorage{db: db}, nil
+
+	s := &PostgresStorage{db: db}
+	if err := s.initSchema(context.Background()); err != nil {
+		return nil, fmt.Errorf("failed to initialize schema: %w", err)
+	}
+
+	return s, nil
+}
+
+func (s *PostgresStorage) initSchema(ctx context.Context) error {
+	var exists bool
+	err := s.db.QueryRowContext(ctx, "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'schema_version')").Scan(&exists)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		logrus.Info("Initializing database schema")
+		_, err = s.db.ExecContext(ctx, schemaSQL)
+		if err != nil {
+			return err
+		}
+	} else {
+		var version int
+		err = s.db.QueryRowContext(ctx, "SELECT MAX(version) FROM schema_version").Scan(&version)
+		if err != nil {
+			return err
+		}
+		logrus.WithField("version", version).Info("Database schema is up to date")
+	}
+
+	return nil
 }
 
 func (s *PostgresStorage) CreateConversation(ctx context.Context, metadata map[string]interface{}) (*Conversation, *Branch, error) {
