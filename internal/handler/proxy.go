@@ -74,8 +74,25 @@ func modifyHeaders(req *http.Request, headers map[string]string) {
 	}
 }
 
+type loggingResponseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (lrw *loggingResponseWriter) WriteHeader(code int) {
+	lrw.statusCode = code
+	lrw.ResponseWriter.WriteHeader(code)
+}
+
 // ServeHTTP handles incoming HTTP requests
 func (ph *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+
+	lrw := &loggingResponseWriter{
+		ResponseWriter: w,
+		statusCode:     http.StatusOK,
+	}
+
 	// Get interceptor for this endpoint
 	intcptor := ph.Manager.GetInterceptor(r.URL.Path)
 	var state interceptor.State
@@ -85,7 +102,7 @@ func (ph *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		state = intcptor.CreateState()
 	}
 
-	err := ph.ServeHTTP2(w, r, intcptor, state)
+	err := ph.ServeHTTP2(lrw, r, intcptor, state)
 
 	if intcptor != nil {
 		if err != nil {
@@ -94,6 +111,15 @@ func (ph *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			intcptor.OnComplete(state)
 		}
 	}
+
+	duration := time.Since(start)
+	logrus.WithFields(logrus.Fields{
+		"method":   r.Method,
+		"path":     r.URL.Path,
+		"status":   lrw.statusCode,
+		"duration": duration,
+		"remote":   r.RemoteAddr,
+	}).Info("HTTP request")
 }
 
 func (ph *ProxyHandler) ServeHTTP2(w http.ResponseWriter, r *http.Request, intcptor interceptor.Interceptor, state interceptor.State) error {
@@ -118,7 +144,6 @@ func (ph *ProxyHandler) ServeHTTP2(w http.ResponseWriter, r *http.Request, intcp
 	}
 
 	// Forward the request to upstream
-	logrus.Printf(req.URL.String())
 	resp, err := ph.Client.Do(req)
 	if err != nil {
 		http.Error(w, "Upstream error", http.StatusBadGateway)
@@ -167,6 +192,7 @@ func (ph *ProxyHandler) ServeHTTP2(w http.ResponseWriter, r *http.Request, intcp
 	if resp.StatusCode >= 400 {
 		return fmt.Errorf("upstream returned status code %d", resp.StatusCode)
 	}
+
 	return nil
 }
 

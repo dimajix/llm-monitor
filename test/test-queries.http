@@ -109,3 +109,8 @@ Content-Type: application/json
   ],
   "stream": true
 }
+
+
+###
+GET http://localhost:8080/api/tags
+Content-Type: application/json

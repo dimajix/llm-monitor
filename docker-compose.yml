@@ -10,6 +10,7 @@ services:
       - DB_PORT=5432
       - DB_NAME=llm_monitor
       - UPSTREAM_URL=http://strix.ffm.dimajix.net:11434  # Example upstream
+      #- UPSTREAM_URL=http://ollama:11434  # Example upstream
     depends_on:
       db:
         condition: service_healthy
