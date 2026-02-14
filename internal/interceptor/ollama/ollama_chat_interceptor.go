@@ -135,6 +135,10 @@ func (oi *ChatInterceptor) ChunkInterceptor(chunk []byte, state interceptor.Stat
 func (oi *ChatInterceptor) OnComplete(state interceptor.State) {
 	ollamaState, _ := state.(*chatState)
 	logrus.Printf("[%s] Request completed for model: %s", oi.Name, ollamaState.response.Model)
+	for _, m := range ollamaState.request.Messages {
+		logrus.Printf("[%s] Request [%s]: %s", oi.Name, m.Role, m.Content)
+	}
+	logrus.Printf("[%s] Response [%s]: %s", oi.Name, ollamaState.response.Message.Role, ollamaState.response.Message.Content)
 
 	if oi.Storage != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -181,11 +185,6 @@ func (oi *ChatInterceptor) OnComplete(state interceptor.State) {
 			}
 		}
 	}
-
-	for _, m := range ollamaState.request.Messages {
-		logrus.Printf("[%s] Request [%s]: %s", oi.Name, m.Role, m.Content)
-	}
-	logrus.Printf("[%s] Response [%s]: %s", oi.Name, ollamaState.response.Message.Role, ollamaState.response.Message.Content)
 }
 
 // OnError handles errors during request processing

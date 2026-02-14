@@ -2,9 +2,11 @@ package ollama
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"llm-monitor/internal/interceptor"
+	"llm-monitor/internal/storage"
 	"net/http"
 	"time"
 
@@ -13,7 +15,8 @@ import (
 
 // GenerateInterceptor records traffic between a Client and an Ollama server
 type GenerateInterceptor struct {
-	Name string
+	Name    string
+	Storage storage.Storage
 }
 
 // generateRequest represents the structure of a request to the /api/generate endpoint
@@ -132,6 +135,45 @@ func (oi *GenerateInterceptor) OnComplete(state interceptor.State) {
 	logrus.Printf("[%s] Request completed for model: %s", oi.Name, ollamaState.response.Model)
 	logrus.Printf("[%s] Prompt: %s", oi.Name, ollamaState.request.Prompt)
 	logrus.Printf("[%s] Response: %s", oi.Name, ollamaState.response.Response)
+
+	if oi.Storage != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		// For Generate, we have a Prompt (User) and a Response (Assistant)
+		// We can't easily find a branch by history if we don't have the context or previous messages.
+		// If Ollama provides context, we might be able to use it, but our current Storage
+		// expects a history of (Role, Content).
+
+		// Let's create a new conversation for each Generate request for now,
+		// or try to match if history is just the prompt.
+		history := []struct{ Role, Content string }{
+			{Role: "user", Content: ollamaState.request.Prompt},
+		}
+
+		branchID, err := oi.Storage.FindBranchByHistory(ctx, "", history)
+		if err != nil {
+			logrus.WithError(err).Warnf("[%s] Could not find branch by history", oi.Name)
+		}
+
+		if branchID != "" {
+			_, err = oi.Storage.AddMessage(ctx, "", branchID, "assistant", ollamaState.response.Response)
+			if err != nil {
+				logrus.WithError(err).Warnf("[%s] Could not add assistant response to storage", oi.Name)
+			}
+		} else {
+			conv, branch, err := oi.Storage.CreateConversation(ctx, map[string]any{
+				"model":  ollamaState.request.Model,
+				"prompt": ollamaState.request.Prompt,
+			})
+			if err != nil {
+				logrus.WithError(err).Warnf("[%s] Could not create conversation in storage", oi.Name)
+			} else {
+				_, _ = oi.Storage.AddMessage(ctx, conv.ID, branch.ID, "user", ollamaState.request.Prompt)
+				_, _ = oi.Storage.AddMessage(ctx, conv.ID, branch.ID, "assistant", ollamaState.response.Response)
+			}
+		}
+	}
 }
 
 // OnError is called when an error occurs

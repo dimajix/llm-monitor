@@ -65,7 +65,7 @@ func CreateInterceptor(name string, store storage.Storage) (interceptor.Intercep
 	case "OllamaChatInterceptor":
 		return &ollama.ChatInterceptor{Name: name, Storage: store}, nil
 	case "OllamaGenerateInterceptor":
-		return &ollama.GenerateInterceptor{Name: name}, nil
+		return &ollama.GenerateInterceptor{Name: name, Storage: store}, nil
 	default:
 		return nil, fmt.Errorf("invalid interceptor type: %s", name)
 	}
