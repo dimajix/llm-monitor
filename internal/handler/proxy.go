@@ -153,7 +153,7 @@ func (ph *ProxyHandler) ServeHTTP2(w http.ResponseWriter, r *http.Request, intcp
 	w.WriteHeader(resp.StatusCode)
 
 	// Handle chunked responses
-	if resp.Header.Get("Transfer-Encoding") == "chunked" {
+	if len(resp.TransferEncoding) > 0 && resp.TransferEncoding[0] == "chunked" {
 		err := ph.handleChunkedResponse(w, resp, intcptor, state)
 		if err != nil {
 			// Don't send error response here - we already wrote headers

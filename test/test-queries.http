@@ -8,3 +8,104 @@ GET http://localhost:8080/api/products
 ###
 GET http://localhost:8080/api/logs
 
+
+
+###
+POST http://localhost:11434/api/generate
+Content-Type: application/json
+
+{
+  "model": "qwen3-coder:30b",
+  "prompt": "Erkläre den Unterschied zwischen Machine Learning und Deep Learning in 20 Worten.",
+  "stream": false
+}
+
+###
+POST http://localhost:8080/api/generate
+Content-Type: application/json
+
+{
+  "model": "qwen3-coder:30b",
+  "prompt": "Erkläre den Unterschied zwischen Machine Learning und Deep Learning in 20 Worten.",
+  "stream": false
+}
+
+###
+POST http://localhost:11434/api/generate
+Content-Type: application/json
+
+{
+  "model": "qwen3-coder:30b",
+  "prompt": "Erkläre den Unterschied zwischen Machine Learning und Deep Learning in 20 Worten.",
+  "stream": true
+}
+
+###
+POST http://localhost:8080/api/generate
+Content-Type: application/json
+
+{
+  "model": "qwen3-coder:30b",
+  "prompt": "Erkläre den Unterschied zwischen Machine Learning und Deep Learning in 20 Worten.",
+  "stream": true
+}
+
+###
+POST http://localhost:11434/api/chat
+Content-Type: application/json
+
+{
+  "model": "qwen3-coder:30b",
+    "messages": [
+        {
+            "role": "user",
+            "content": "Explain quantum computing in simple terms in 20 words"
+        }
+    ],
+    "stream": false
+}
+
+###
+POST http://localhost:11434/api/chat
+Content-Type: application/json
+
+{
+  "model": "qwen3-coder:30b",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Explain quantum computing in simple terms in 20 words"
+    }
+  ],
+  "stream": true
+}
+
+###
+POST http://localhost:8080/api/chat
+Content-Type: application/json
+
+{
+  "model": "qwen3-coder:30b",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Explain quantum computing in simple terms in 20 words"
+    }
+  ],
+  "stream": false
+}
+
+###
+POST http://localhost:8080/api/chat
+Content-Type: application/json
+
+{
+  "model": "qwen3-coder:30b",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Explain quantum computing in simple terms in 20 words"
+    }
+  ],
+  "stream": true
+}

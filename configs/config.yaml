@@ -1,7 +1,7 @@
 logging:
   format: "json"  # or "text" for text format
 port: 8080
-upstream: "https://httpbin.org"
+upstream: "http://localhost:11434"
 intercepts:
   - endpoint: "/api/users"
     interceptor: "CustomInterceptor"
@@ -9,3 +9,7 @@ intercepts:
     interceptor: "SimpleInterceptor"
   - endpoint: "/api/logs"
     interceptor: "LoggingInterceptor"
+  - endpoint: "/api/generate"
+    interceptor: "OllamaGenerateInterceptor"
+  - endpoint: "/api/chat"
+    interceptor: "OllamaChatInterceptor"

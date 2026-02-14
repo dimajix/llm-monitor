@@ -1,0 +1,138 @@
+package ollama
+
+import (
+	"bytes"
+	"encoding/json"
+	"io"
+	"llm-monitor/internal/interceptor"
+	"net/http"
+	"time"
+
+	"github.com/sirupsen/logrus"
+)
+
+// GenerateInterceptor records traffic between a Client and an Ollama server
+type GenerateInterceptor struct {
+	Name string
+}
+
+// GenerateRequest represents the structure of a request to the /api/generate endpoint
+type GenerateRequest struct {
+	Model   string                 `json:"model"`
+	Prompt  string                 `json:"prompt"`
+	Stream  bool                   `json:"stream"`
+	Options map[string]interface{} `json:"options,omitempty"`
+}
+
+// GenerateResponse represents the structure of a response from the /api/generate endpoint
+type GenerateResponse struct {
+	Model              string `json:"model"`
+	CreatedAt          string `json:"created_at"`
+	Response           string `json:"response"`
+	Done               bool   `json:"done"`
+	DoneReason         string `json:"done_reason,omitempty"`
+	Context            []int  `json:"context,omitempty"`
+	TotalDuration      int64  `json:"total_duration"`
+	LoadDuration       int64  `json:"load_duration"`
+	PromptEvalCount    int    `json:"prompt_eval_count"`
+	PromptEvalDuration int64  `json:"prompt_eval_duration"`
+	EvalCount          int    `json:"eval_count"`
+	EvalDuration       int64  `json:"eval_duration"`
+}
+
+// GenerateState holds the state for an Ollama generate request
+type GenerateState struct {
+	request   GenerateRequest
+	response  GenerateResponse
+	startTime time.Time
+	endTime   time.Time
+}
+
+// CreateState creates a new GenerateState for tracking requests
+func (oi *GenerateInterceptor) CreateState() interceptor.State {
+	return &GenerateState{
+		startTime: time.Now(),
+	}
+}
+
+// RequestInterceptor intercepts the request to /api/generate
+func (oi *GenerateInterceptor) RequestInterceptor(req *http.Request, state interceptor.State) error {
+	logrus.Printf("[%s] Intercepting request to %s", oi.Name, req.URL.Path)
+
+	// Read the request body
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		return err
+	}
+	defer req.Body.Close()
+
+	// Store the request body in state
+	ollamaState, _ := state.(*GenerateState)
+
+	// Parse the request to extract model and prompt
+	var generateReq GenerateRequest
+	if err := json.Unmarshal(body, &generateReq); err != nil {
+		logrus.WithError(err).Warningf("[%s] Could not parse request body: %v", oi.Name, err)
+	} else {
+		ollamaState.request = generateReq
+	}
+
+	// Replace the request body with the original content
+	req.Body = io.NopCloser(bytes.NewBuffer(body))
+
+	return nil
+}
+
+// ResponseInterceptor intercepts the response from /api/generate
+func (oi *GenerateInterceptor) ResponseInterceptor(resp *http.Response, state interceptor.State) error {
+	return nil
+}
+
+// ContentInterceptor intercepts content (not used for this specific interceptor)
+func (oi *GenerateInterceptor) ContentInterceptor(content []byte, state interceptor.State) ([]byte, error) {
+	ollamaState, _ := state.(*GenerateState)
+
+	// Parse the response to extract details
+	var generateResp GenerateResponse
+	if err := json.Unmarshal(content, &generateResp); err != nil {
+		logrus.WithError(err).Warningf("[%s] Could not parse response body: %v", oi.Name, err)
+	} else {
+		ollamaState.response = generateResp
+	}
+
+	return content, nil
+}
+
+// ChunkInterceptor intercepts chunks (not used for this specific interceptor)
+func (oi *GenerateInterceptor) ChunkInterceptor(chunk []byte, state interceptor.State) ([]byte, error) {
+	ollamaState, _ := state.(*GenerateState)
+
+	// Parse the response to extract details
+	var generateResp GenerateResponse
+	if err := json.Unmarshal(chunk, &generateResp); err != nil {
+		logrus.WithError(err).Warningf("[%s] Could not parse response chunk: %v", oi.Name, err)
+	} else {
+		currentResponse := ollamaState.response.Response + generateResp.Response
+		if generateResp.Done {
+			ollamaState.response = generateResp
+		}
+		ollamaState.response.Response = currentResponse
+	}
+
+	return chunk, nil
+}
+
+// OnComplete is called when the request is completed
+func (oi *GenerateInterceptor) OnComplete(state interceptor.State) {
+	ollamaState, _ := state.(*GenerateState)
+	ollamaState.endTime = time.Now()
+
+	logrus.Printf("[%s] Request completed for model: %s", oi.Name, ollamaState.response.Model)
+	logrus.Printf("[%s] Prompt: %s", oi.Name, ollamaState.request.Prompt)
+	logrus.Printf("[%s] Response: %s", oi.Name, ollamaState.response.Response)
+}
+
+// OnError is called when an error occurs
+func (oi *GenerateInterceptor) OnError(state interceptor.State, err error) {
+	logrus.WithError(err).Warningf("[%s] Error occurred: %v", oi.Name, err)
+}

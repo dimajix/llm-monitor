@@ -5,6 +5,7 @@ import (
 	"llm-monitor/internal/config"
 	"llm-monitor/internal/handler"
 	"llm-monitor/internal/interceptor"
+	"llm-monitor/internal/interceptor/ollama"
 	"net/http"
 
 	"github.com/sirupsen/logrus"
@@ -19,7 +20,10 @@ func CreateServer(cfg config.Config) *http.Server {
 
 	// Register interceptors based on configuration
 	for _, intercept := range cfg.Intercepts {
-		interceptorInstance := interceptor.CreateInterceptor(intercept.Interceptor)
+		interceptorInstance, err := CreateInterceptor(intercept.Interceptor)
+		if err != nil {
+			logrus.WithError(err).Fatal("Failed to create proxy handler")
+		}
 		proxy.RegisterInterceptor(intercept.Endpoint, interceptorInstance)
 		logrus.WithFields(logrus.Fields{
 			"interceptor": intercept.Interceptor,
@@ -37,4 +41,22 @@ func CreateServer(cfg config.Config) *http.Server {
 	}
 
 	return server
+}
+
+// CreateInterceptor creates an interceptor instance based on name
+func CreateInterceptor(name string) (interceptor.Interceptor, error) {
+	switch name {
+	case "CustomInterceptor":
+		return &interceptor.CustomInterceptor{Name: name}, nil
+	case "SimpleInterceptor":
+		return &interceptor.SimpleInterceptor{Name: name}, nil
+	case "LoggingInterceptor":
+		return &interceptor.LoggingInterceptor{Name: name}, nil
+	case "OllamaChatInterceptor":
+		return &ollama.ChatInterceptor{Name: name}, nil
+	case "OllamaGenerateInterceptor":
+		return &ollama.GenerateInterceptor{Name: name}, nil
+	default:
+		return nil, fmt.Errorf("invalid interceptor type: %s", name)
+	}
 }

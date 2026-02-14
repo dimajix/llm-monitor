@@ -67,17 +67,3 @@ func (im *Manager) GetInterceptor(endpoint string) Interceptor {
 
 	return nil
 }
-
-// CreateInterceptor creates an interceptor instance based on name
-func CreateInterceptor(name string) Interceptor {
-	switch name {
-	case "CustomInterceptor":
-		return &CustomInterceptor{Name: name}
-	case "SimpleInterceptor":
-		return &SimpleInterceptor{Name: name}
-	case "LoggingInterceptor":
-		return &LoggingInterceptor{Name: name}
-	default:
-		return &SimpleInterceptor{Name: name}
-	}
-}
