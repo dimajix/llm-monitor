@@ -23,15 +23,17 @@ type Branch struct {
 
 // Message represents a single chat message.
 type Message struct {
-	ID             string    `json:"id"`
-	ConversationID string    `json:"conversation_id"`
-	BranchID       string    `json:"branch_id"`
-	Role           string    `json:"role"`
-	Content        string    `json:"content"`
-	SequenceNumber int       `json:"sequence_number"`
-	CumulativeHash string    `json:"cumulative_hash"`
-	ChildBranchIDs []string  `json:"child_branch_ids,omitzero"`
-	CreatedAt      time.Time `json:"created_at"`
+	ID                 string    `json:"id"`
+	ConversationID     string    `json:"conversation_id"`
+	BranchID           string    `json:"branch_id"`
+	Role               string    `json:"role"`
+	Content            string    `json:"content"`
+	SequenceNumber     int       `json:"sequence_number"`
+	CumulativeHash     string    `json:"cumulative_hash"`
+	ChildBranchIDs     []string  `json:"child_branch_ids,omitzero"`
+	CreatedAt          time.Time `json:"created_at"`
+	UpstreamStatusCode int       `json:"upstream_status_code,omitzero"`
+	UpstreamError      string    `json:"upstream_error,omitzero"`
 }
 
 // Storage defines the interface for persisting and retrieving conversation data.
@@ -44,7 +46,7 @@ type Storage interface {
 
 	// AddMessage adds a message to an existing branch.
 	// If the history provided diverged from the existing branch history, a new branch is created.
-	AddMessage(ctx context.Context, conversationID string, branchID string, role, content string) (*Message, error)
+	AddMessage(ctx context.Context, conversationID string, branchID string, role, content string, statusCode int, errorText string) (*Message, error)
 
 	// GetBranchHistory retrieves the full message history for a specific branch.
 	GetBranchHistory(ctx context.Context, branchID string) ([]Message, error)

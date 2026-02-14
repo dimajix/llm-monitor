@@ -31,6 +31,8 @@ CREATE TABLE messages (
     cumulative_hash VARCHAR(64) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     child_branch_ids UUID[] DEFAULT '{}',
+    upstream_status_code INT,
+    upstream_error TEXT,
     
     UNIQUE (branch_id, sequence_number),
     UNIQUE (conversation_id, cumulative_hash)

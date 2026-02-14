@@ -87,12 +87,9 @@ func (ph *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	err := ph.ServeHTTP2(w, r, intcptor, state)
 
-	// Call onComplete when response is complete
 	if intcptor != nil {
 		if err != nil {
-			logrus.WithError(err).Warn("Request interceptor error")
 			intcptor.OnError(state, err)
-
 		} else {
 			intcptor.OnComplete(state)
 		}
@@ -116,8 +113,7 @@ func (ph *ProxyHandler) ServeHTTP2(w http.ResponseWriter, r *http.Request, intcp
 	if intcptor != nil {
 		// Apply request interceptor
 		if err := intcptor.RequestInterceptor(req, state); err != nil {
-			http.Error(w, "Request interceptor error", http.StatusInternalServerError)
-			return err
+			logrus.WithError(err).Warn("Error in intercepting request")
 		}
 	}
 
@@ -137,8 +133,7 @@ func (ph *ProxyHandler) ServeHTTP2(w http.ResponseWriter, r *http.Request, intcp
 	// Apply response interceptor if exists
 	if intcptor != nil {
 		if err := intcptor.ResponseInterceptor(resp, state); err != nil {
-			http.Error(w, "Response interceptor error", http.StatusInternalServerError)
-			return err
+			logrus.WithError(err).Warn("Error in intercepting response")
 		}
 	}
 
@@ -168,6 +163,10 @@ func (ph *ProxyHandler) ServeHTTP2(w http.ResponseWriter, r *http.Request, intcp
 		}
 	}
 
+	// Trigger error if upstream returned an error status code
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("upstream returned status code %d", resp.StatusCode)
+	}
 	return nil
 }
 
