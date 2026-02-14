@@ -16,24 +16,24 @@ type ChatInterceptor struct {
 	Name string
 }
 
-// ChatMessage represents a chat message
-type ChatMessage struct {
+// chatMessage represents a chat message
+type chatMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
-// ChatRequest represents the structure of a chat request
-type ChatRequest struct {
+// chatRequest represents the structure of a chat request
+type chatRequest struct {
 	Model    string        `json:"model"`
-	Messages []ChatMessage `json:"messages"`
+	Messages []chatMessage `json:"messages"`
 	Stream   bool          `json:"stream"`
 }
 
-// ChatResponse represents the structure of a chat response
-type ChatResponse struct {
+// chatResponse represents the structure of a chat response
+type chatResponse struct {
 	Model              string      `json:"model"`
 	CreatedAt          string      `json:"created_at"`
-	Message            ChatMessage `json:"message"`
+	Message            chatMessage `json:"message"`
 	Done               bool        `json:"done"`
 	DoneReason         string      `json:"done_reason,omitempty"`
 	TotalDuration      int64       `json:"total_duration,omitempty"`
@@ -44,17 +44,17 @@ type ChatResponse struct {
 	EvalDuration       int64       `json:"eval_duration,omitempty"`
 }
 
-// ChatState holds the state information for Ollama requests
-type ChatState struct {
-	request   ChatRequest
-	response  ChatResponse
+// chatState holds the state information for Ollama requests
+type chatState struct {
+	request   chatRequest
+	response  chatResponse
 	startTime time.Time
 	endTime   time.Time
 }
 
 // CreateState creates a new state for the interceptor
 func (oi *ChatInterceptor) CreateState() interceptor.State {
-	return &ChatState{
+	return &chatState{
 		startTime: time.Now(),
 	}
 }
@@ -71,10 +71,10 @@ func (oi *ChatInterceptor) RequestInterceptor(req *http.Request, state intercept
 	defer req.Body.Close()
 
 	// Extract model name
-	ollamaState, _ := state.(*ChatState)
+	ollamaState, _ := state.(*chatState)
 
 	// Parse the chat request
-	var chatReq ChatRequest
+	var chatReq chatRequest
 	if err := json.Unmarshal(body, &chatReq); err != nil {
 		logrus.WithError(err).Warningf("[%s] Warning: Could not parse request body", oi.Name)
 	} else {
@@ -94,10 +94,10 @@ func (oi *ChatInterceptor) ResponseInterceptor(resp *http.Response, state interc
 
 // ContentInterceptor intercepts content to extract streaming messages
 func (oi *ChatInterceptor) ContentInterceptor(content []byte, state interceptor.State) ([]byte, error) {
-	ollamaState, _ := state.(*ChatState)
+	ollamaState, _ := state.(*chatState)
 
 	// Parse the streaming response
-	var chatResp ChatResponse
+	var chatResp chatResponse
 	if err := json.Unmarshal(content, &chatResp); err != nil {
 		logrus.WithError(err).Warningf("[%s] Warning: Could not parse response body", oi.Name)
 	} else {
@@ -109,10 +109,10 @@ func (oi *ChatInterceptor) ContentInterceptor(content []byte, state interceptor.
 
 // ChunkInterceptor intercepts chunks for streaming responses
 func (oi *ChatInterceptor) ChunkInterceptor(chunk []byte, state interceptor.State) ([]byte, error) {
-	ollamaState, _ := state.(*ChatState)
+	ollamaState, _ := state.(*chatState)
 
 	// Parse the response to extract details
-	var chatResp ChatResponse
+	var chatResp chatResponse
 	if err := json.Unmarshal(chunk, &chatResp); err != nil {
 		logrus.WithError(err).Warningf("[%s] Warning: Could not parse response chunk", oi.Name)
 	} else {
@@ -128,7 +128,7 @@ func (oi *ChatInterceptor) ChunkInterceptor(chunk []byte, state interceptor.Stat
 
 // OnComplete handles completion of the request
 func (oi *ChatInterceptor) OnComplete(state interceptor.State) {
-	ollamaState, _ := state.(*ChatState)
+	ollamaState, _ := state.(*chatState)
 	logrus.Printf("[%s] Request completed for model: %s", oi.Name, ollamaState.response.Model)
 	for _, m := range ollamaState.request.Messages {
 		logrus.Printf("[%s] Request [%s]: %s", oi.Name, m.Role, m.Content)

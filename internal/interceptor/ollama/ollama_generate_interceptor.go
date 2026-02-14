@@ -16,16 +16,16 @@ type GenerateInterceptor struct {
 	Name string
 }
 
-// GenerateRequest represents the structure of a request to the /api/generate endpoint
-type GenerateRequest struct {
+// generateRequest represents the structure of a request to the /api/generate endpoint
+type generateRequest struct {
 	Model   string                 `json:"model"`
 	Prompt  string                 `json:"prompt"`
 	Stream  bool                   `json:"stream"`
 	Options map[string]interface{} `json:"options,omitempty"`
 }
 
-// GenerateResponse represents the structure of a response from the /api/generate endpoint
-type GenerateResponse struct {
+// generateResponse represents the structure of a response from the /api/generate endpoint
+type generateResponse struct {
 	Model              string `json:"model"`
 	CreatedAt          string `json:"created_at"`
 	Response           string `json:"response"`
@@ -40,17 +40,17 @@ type GenerateResponse struct {
 	EvalDuration       int64  `json:"eval_duration"`
 }
 
-// GenerateState holds the state for an Ollama generate request
-type GenerateState struct {
-	request   GenerateRequest
-	response  GenerateResponse
+// generateState holds the state for an Ollama generate request
+type generateState struct {
+	request   generateRequest
+	response  generateResponse
 	startTime time.Time
 	endTime   time.Time
 }
 
-// CreateState creates a new GenerateState for tracking requests
+// CreateState creates a new generateState for tracking requests
 func (oi *GenerateInterceptor) CreateState() interceptor.State {
-	return &GenerateState{
+	return &generateState{
 		startTime: time.Now(),
 	}
 }
@@ -67,10 +67,10 @@ func (oi *GenerateInterceptor) RequestInterceptor(req *http.Request, state inter
 	defer req.Body.Close()
 
 	// Store the request body in state
-	ollamaState, _ := state.(*GenerateState)
+	ollamaState, _ := state.(*generateState)
 
 	// Parse the request to extract model and prompt
-	var generateReq GenerateRequest
+	var generateReq generateRequest
 	if err := json.Unmarshal(body, &generateReq); err != nil {
 		logrus.WithError(err).Warningf("[%s] Could not parse request body: %v", oi.Name, err)
 	} else {
@@ -90,10 +90,10 @@ func (oi *GenerateInterceptor) ResponseInterceptor(resp *http.Response, state in
 
 // ContentInterceptor intercepts content (not used for this specific interceptor)
 func (oi *GenerateInterceptor) ContentInterceptor(content []byte, state interceptor.State) ([]byte, error) {
-	ollamaState, _ := state.(*GenerateState)
+	ollamaState, _ := state.(*generateState)
 
 	// Parse the response to extract details
-	var generateResp GenerateResponse
+	var generateResp generateResponse
 	if err := json.Unmarshal(content, &generateResp); err != nil {
 		logrus.WithError(err).Warningf("[%s] Could not parse response body: %v", oi.Name, err)
 	} else {
@@ -105,10 +105,10 @@ func (oi *GenerateInterceptor) ContentInterceptor(content []byte, state intercep
 
 // ChunkInterceptor intercepts chunks (not used for this specific interceptor)
 func (oi *GenerateInterceptor) ChunkInterceptor(chunk []byte, state interceptor.State) ([]byte, error) {
-	ollamaState, _ := state.(*GenerateState)
+	ollamaState, _ := state.(*generateState)
 
 	// Parse the response to extract details
-	var generateResp GenerateResponse
+	var generateResp generateResponse
 	if err := json.Unmarshal(chunk, &generateResp); err != nil {
 		logrus.WithError(err).Warningf("[%s] Could not parse response chunk: %v", oi.Name, err)
 	} else {
@@ -124,7 +124,7 @@ func (oi *GenerateInterceptor) ChunkInterceptor(chunk []byte, state interceptor.
 
 // OnComplete is called when the request is completed
 func (oi *GenerateInterceptor) OnComplete(state interceptor.State) {
-	ollamaState, _ := state.(*GenerateState)
+	ollamaState, _ := state.(*generateState)
 	ollamaState.endTime = time.Now()
 
 	logrus.Printf("[%s] Request completed for model: %s", oi.Name, ollamaState.response.Model)
