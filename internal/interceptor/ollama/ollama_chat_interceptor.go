@@ -17,6 +17,7 @@ import (
 type ChatInterceptor struct {
 	Name    string
 	Storage storage.Storage
+	Timeout time.Duration
 }
 
 // chatMessage represents a chat message
@@ -145,7 +146,7 @@ func (oi *ChatInterceptor) OnComplete(state interceptor.State) {
 	logrus.Printf("[%s] Response [%s]: %s", oi.Name, ollamaState.response.Message.Role, ollamaState.response.Message.Content)
 
 	if oi.Storage != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), oi.Timeout)
 		defer cancel()
 
 		oi.saveToStorage(ctx, ollamaState)
@@ -158,7 +159,7 @@ func (oi *ChatInterceptor) OnError(state interceptor.State, err error) {
 	logrus.WithError(err).Warningf("[%s] Error occurred", oi.Name)
 
 	if oi.Storage != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), oi.Timeout)
 		defer cancel()
 
 		oi.saveToStorage(ctx, ollamaState)
@@ -188,11 +189,11 @@ func (oi *ChatInterceptor) saveToStorage(ctx context.Context, ollamaState *chatS
 			break
 		}
 		newLen := len(curHistory) - 1
+		curHistory = curHistory[0:newLen]
 		if newLen <= 0 {
 			currentParentID = ""
 			break
 		}
-		curHistory = curHistory[0:newLen]
 	}
 
 	// Create new conversation if no message is found

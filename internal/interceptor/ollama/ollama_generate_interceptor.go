@@ -17,6 +17,7 @@ import (
 type GenerateInterceptor struct {
 	Name    string
 	Storage storage.Storage
+	Timeout time.Duration
 }
 
 // generateRequest represents the structure of a request to the /api/generate endpoint
@@ -140,7 +141,7 @@ func (oi *GenerateInterceptor) OnComplete(state interceptor.State) {
 	logrus.Printf("[%s] Response: %s", oi.Name, ollamaState.response.Response)
 
 	if oi.Storage != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), oi.Timeout)
 		defer cancel()
 
 		oi.saveToStorage(ctx, ollamaState)
@@ -153,7 +154,7 @@ func (oi *GenerateInterceptor) OnError(state interceptor.State, err error) {
 	logrus.WithError(err).Warningf("[%s] Error occurred: %v", oi.Name, err)
 
 	if oi.Storage != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), oi.Timeout)
 		defer cancel()
 
 		oi.saveToStorage(ctx, ollamaState)

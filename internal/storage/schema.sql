@@ -33,6 +33,7 @@ CREATE TABLE messages (
     child_branch_ids UUID[] DEFAULT '{}',
     upstream_status_code INT,
     upstream_error TEXT,
+    parent_message_id UUID REFERENCES messages(id),
     
     UNIQUE (branch_id, sequence_number),
     UNIQUE (conversation_id, cumulative_hash)
@@ -48,6 +49,7 @@ CREATE INDEX idx_messages_branch_seq ON messages (branch_id, sequence_number);
 CREATE INDEX idx_messages_conversation ON messages (conversation_id);
 CREATE INDEX idx_messages_hash ON messages (cumulative_hash);
 CREATE INDEX idx_messages_children ON messages USING GIN (child_branch_ids);
+CREATE INDEX idx_messages_parent ON messages (parent_message_id);
 
 -- Schema versioning
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -55,4 +57,4 @@ CREATE TABLE IF NOT EXISTS schema_version (
     applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-INSERT INTO schema_version (version) VALUES (1) ON CONFLICT (version) DO NOTHING;
+INSERT INTO schema_version (version) VALUES (2) ON CONFLICT (version) DO UPDATE SET version = 2;

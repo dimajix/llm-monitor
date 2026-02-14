@@ -29,11 +29,11 @@ type Message struct {
 	Role               string    `json:"role"`
 	Content            string    `json:"content"`
 	SequenceNumber     int       `json:"sequence_number"`
-	CumulativeHash     string    `json:"cumulative_hash"`
 	ChildBranchIDs     []string  `json:"child_branch_ids,omitzero"`
 	CreatedAt          time.Time `json:"created_at"`
+	ParentMessageID    *string   `json:"parent_message_id,omitzero"`
 	UpstreamStatusCode int       `json:"upstream_status_code,omitzero"`
-	UpstreamError      string    `json:"upstream_error,omitzero"`
+	UpstreamError      *string   `json:"upstream_error,omitzero"`
 }
 
 // Storage defines the interface for persisting and retrieving conversation data.

@@ -8,6 +8,7 @@ import (
 	"llm-monitor/internal/interceptor/ollama"
 	"llm-monitor/internal/storage"
 	"net/http"
+	"time"
 
 	"github.com/sirupsen/logrus"
 )
@@ -63,9 +64,9 @@ func CreateInterceptor(name string, store storage.Storage) (interceptor.Intercep
 	case "LoggingInterceptor":
 		return &interceptor.LoggingInterceptor{Name: name}, nil
 	case "OllamaChatInterceptor":
-		return &ollama.ChatInterceptor{Name: name, Storage: store}, nil
+		return &ollama.ChatInterceptor{Name: name, Storage: store, Timeout: 30 * time.Second}, nil
 	case "OllamaGenerateInterceptor":
-		return &ollama.GenerateInterceptor{Name: name, Storage: store}, nil
+		return &ollama.GenerateInterceptor{Name: name, Storage: store, Timeout: 30 * time.Second}, nil
 	default:
 		return nil, fmt.Errorf("invalid interceptor type: %s", name)
 	}
