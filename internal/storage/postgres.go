@@ -117,13 +117,14 @@ func (s *PostgresStorage) GetConversation(ctx context.Context, id string) (*Conv
 	return &conv, nil
 }
 
-func (s *PostgresStorage) AddMessage(ctx context.Context, conversationID string, branchID string, parentMessageID string, role, content string, statusCode int, errorText string) (*Message, error) {
+func (s *PostgresStorage) AddMessage(ctx context.Context, parentMessageID string, message *Message) (*Message, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback()
 
+	var branchID string
 	var lastHash string
 	var lastSeq int
 	var lastMsgID string
@@ -138,6 +139,14 @@ func (s *PostgresStorage) AddMessage(ctx context.Context, conversationID string,
 			return nil, err
 		}
 	} else {
+		// No parent message means this must be the first message in a conversation.
+		// However, we need a branchID to associate it with.
+		// If message.BranchID is provided, we use it.
+		branchID = message.BranchID
+		if branchID == "" {
+			return nil, fmt.Errorf("branchID is required when parentMessageID is empty")
+		}
+
 		// Get parent branch's last message to compute cumulative hash and next sequence number
 		err = tx.QueryRowContext(ctx,
 			"SELECT id, cumulative_hash, sequence_number FROM messages WHERE branch_id = $1 ORDER BY sequence_number DESC LIMIT 1",
@@ -179,11 +188,11 @@ func (s *PostgresStorage) AddMessage(ctx context.Context, conversationID string,
 
 		if hasChildren {
 			// Fork! Create a new branch from lastMsgID
-			var newBranch Branch
+			var newBranchID string
 			err = tx.QueryRowContext(ctx,
 				"INSERT INTO branches (conversation_id, parent_branch_id, parent_message_id) VALUES ((SELECT conversation_id FROM branches WHERE id = $1), $1, $2) RETURNING id",
 				branchID, lastMsgID,
-			).Scan(&newBranch.ID)
+			).Scan(&newBranchID)
 			if err != nil {
 				return nil, err
 			}
@@ -191,26 +200,26 @@ func (s *PostgresStorage) AddMessage(ctx context.Context, conversationID string,
 			// Update child_branch_ids in parent message
 			_, err = tx.ExecContext(ctx,
 				"UPDATE messages SET child_branch_ids = array_append(child_branch_ids, $1) WHERE id = $2",
-				newBranch.ID, lastMsgID,
+				newBranchID, lastMsgID,
 			)
 			if err != nil {
 				return nil, err
 			}
 
-			branchID = newBranch.ID
+			branchID = newBranchID
 		}
 	}
 
 	nextSeq := lastSeq + 1
-	newHash := computeHash(lastHash, role, content)
+	newHash := computeHash(lastHash, message.Role, message.Content)
 
-	// Check for idempotency: does this message already exist in this conversation?
+	// Check for idempotency: does this message already exist?
 	var existingMsg Message
 	var statusCodeVal sql.NullInt32
 	var errorTextVal sql.NullString
 	err = tx.QueryRowContext(ctx,
-		"SELECT id, conversation_id, branch_id, role, content, sequence_number, cumulative_hash, created_at, upstream_status_code, upstream_error FROM messages WHERE (conversation_id = (SELECT conversation_id FROM branches WHERE id = $1) OR conversation_id = $2) AND cumulative_hash = $3",
-		branchID, conversationID, newHash,
+		"SELECT id, conversation_id, branch_id, role, content, sequence_number, cumulative_hash, created_at, upstream_status_code, upstream_error FROM messages WHERE cumulative_hash = $1",
+		newHash,
 	).Scan(&existingMsg.ID, &existingMsg.ConversationID, &existingMsg.BranchID, &existingMsg.Role, &existingMsg.Content, &existingMsg.SequenceNumber, &existingMsg.CumulativeHash, &existingMsg.CreatedAt, &statusCodeVal, &errorTextVal)
 
 	if err == nil {
@@ -232,7 +241,7 @@ func (s *PostgresStorage) AddMessage(ctx context.Context, conversationID string,
 	var msg Message
 	err = tx.QueryRowContext(ctx,
 		"INSERT INTO messages (conversation_id, branch_id, role, content, sequence_number, cumulative_hash, upstream_status_code, upstream_error) VALUES ((SELECT conversation_id FROM branches WHERE id = $1), $1, $2, $3, $4, $5, $6, $7) RETURNING id, conversation_id, branch_id, role, content, sequence_number, cumulative_hash, created_at, upstream_status_code, upstream_error",
-		branchID, role, content, nextSeq, newHash, statusCode, errorText,
+		branchID, message.Role, message.Content, nextSeq, newHash, message.UpstreamStatusCode, message.UpstreamError,
 	).Scan(&msg.ID, &msg.ConversationID, &msg.BranchID, &msg.Role, &msg.Content, &msg.SequenceNumber, &msg.CumulativeHash, &msg.CreatedAt, &msg.UpstreamStatusCode, &msg.UpstreamError)
 
 	if err != nil {
@@ -288,70 +297,29 @@ func (s *PostgresStorage) GetBranchHistory(ctx context.Context, branchID string)
 	return history, nil
 }
 
-func (s *PostgresStorage) FindBranchByHistory(ctx context.Context, conversationID string, history []struct{ Role, Content string }) (string, string, error) {
+func (s *PostgresStorage) FindMessageByHistory(ctx context.Context, history []struct{ Role, Content string }) (string, error) {
 	currentHash := ""
-	var deepestBranchID string
 	var deepestMessageID string
 
 	for _, m := range history {
 		currentHash = computeHash(currentHash, m.Role, m.Content)
-		var bID, mID string
-		var err error
-		if conversationID != "" {
-			err = s.db.QueryRowContext(ctx,
-				"SELECT branch_id, id FROM messages WHERE conversation_id = $1 AND cumulative_hash = $2",
-				conversationID, currentHash,
-			).Scan(&bID, &mID)
-		} else {
-			err = s.db.QueryRowContext(ctx,
-				"SELECT branch_id, id FROM messages WHERE cumulative_hash = $1",
-				currentHash,
-			).Scan(&bID, &mID)
-		}
+		var mID string
+		err := s.db.QueryRowContext(ctx,
+			"SELECT id FROM messages WHERE cumulative_hash = $1",
+			currentHash,
+		).Scan(&mID)
 
 		if err == nil {
-			deepestBranchID = bID
 			deepestMessageID = mID
 		} else if err != sql.ErrNoRows {
-			return "", "", err
+			return "", err
 		} else {
 			// No more matches
 			break
 		}
 	}
 
-	return deepestBranchID, deepestMessageID, nil
-}
-
-func (s *PostgresStorage) CreateBranch(ctx context.Context, conversationID string, parentBranchID string, parentMessageID string) (*Branch, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	var branch Branch
-	err = tx.QueryRowContext(ctx,
-		"INSERT INTO branches (conversation_id, parent_branch_id, parent_message_id) VALUES ($1, $2, $3) RETURNING id, conversation_id, parent_branch_id, parent_message_id, created_at",
-		conversationID, parentBranchID, parentMessageID,
-	).Scan(&branch.ID, &branch.ConversationID, &branch.ParentBranchID, &branch.ParentMessageID, &branch.CreatedAt)
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = tx.ExecContext(ctx,
-		"UPDATE messages SET child_branch_ids = array_append(child_branch_ids, $1) WHERE id = $2",
-		branch.ID, parentMessageID,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
-
-	return &branch, nil
+	return deepestMessageID, nil
 }
 
 func computeHash(prevHash, role, content string) string {

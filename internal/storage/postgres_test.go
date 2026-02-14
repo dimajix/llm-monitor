@@ -27,30 +27,30 @@ func TestPostgresStorage_Branching(t *testing.T) {
 	_, _ = storage.db.Exec("DELETE FROM conversations")
 
 	// 1. Create a conversation
-	conv, branch, err := storage.CreateConversation(ctx, nil)
+	_, branch, err := storage.CreateConversation(ctx, nil)
 	if err != nil {
 		t.Fatalf("Failed to create conversation: %v", err)
 	}
 
 	// 2. Add two messages
-	m1, err := storage.AddMessage(ctx, conv.ID, branch.ID, "", "user", "Hello", 0, "")
+	m1, err := storage.AddMessage(ctx, "", &Message{BranchID: branch.ID, Role: "user", Content: "Hello"})
 	if err != nil {
 		t.Fatalf("Failed to add message 1: %v", err)
 	}
-	m2, err := storage.AddMessage(ctx, conv.ID, branch.ID, m1.ID, "assistant", "Hi there!", 0, "")
+	m2, err := storage.AddMessage(ctx, m1.ID, &Message{Role: "assistant", Content: "Hi there!"})
 	if err != nil {
 		t.Fatalf("Failed to add message 2: %v", err)
 	}
 
 	// 3. Add a third message to the same branch
-	m3, err := storage.AddMessage(ctx, conv.ID, branch.ID, m2.ID, "user", "How are you?", 0, "")
+	m3, err := storage.AddMessage(ctx, m2.ID, &Message{Role: "user", Content: "How are you?"})
 	if err != nil {
 		t.Fatalf("Failed to add message 3: %v", err)
 	}
 
 	// 4. Now fork from m2 by adding a DIFFERENT message.
 	// We use m2.ID as the parent.
-	m4, err := storage.AddMessage(ctx, conv.ID, branch.ID, m2.ID, "user", "What is the weather?", 0, "")
+	m4, err := storage.AddMessage(ctx, m2.ID, &Message{Role: "user", Content: "What is the weather?"})
 	if err != nil {
 		t.Fatalf("Failed to add message 4: %v", err)
 	}
@@ -109,7 +109,7 @@ func TestPostgresStorage_Branching(t *testing.T) {
 	}
 
 	// 7. Test Idempotency
-	m4_repeat, err := storage.AddMessage(ctx, conv.ID, branch.ID, m2.ID, "user", "What is the weather?", 0, "")
+	m4_repeat, err := storage.AddMessage(ctx, m2.ID, &Message{Role: "user", Content: "What is the weather?"})
 	if err != nil {
 		t.Fatalf("Failed to add message 4 repeat: %v", err)
 	}
