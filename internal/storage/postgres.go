@@ -117,57 +117,124 @@ func (s *PostgresStorage) GetConversation(ctx context.Context, id string) (*Conv
 	return &conv, nil
 }
 
-func (s *PostgresStorage) AddMessage(ctx context.Context, conversationID string, branchID string, role, content string, statusCode int, errorText string) (*Message, error) {
+func (s *PostgresStorage) AddMessage(ctx context.Context, conversationID string, branchID string, parentMessageID string, role, content string, statusCode int, errorText string) (*Message, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback()
 
-	// Get parent branch's last message to compute cumulative hash and next sequence number
 	var lastHash string
-	var nextSeq int
-	err = tx.QueryRowContext(ctx,
-		"SELECT cumulative_hash, sequence_number FROM messages WHERE branch_id = $1 ORDER BY sequence_number DESC LIMIT 1",
-		branchID,
-	).Scan(&lastHash, &nextSeq)
-	if err != nil && err != sql.ErrNoRows {
-		return nil, err
-	}
+	var lastSeq int
+	var lastMsgID string
 
-	if err == sql.ErrNoRows {
-		// First message in branch. If it's a child branch, we need to get the hash from the parent message.
-		var parentMessageID sql.NullString
-		err = tx.QueryRowContext(ctx, "SELECT parent_message_id FROM branches WHERE id = $1", branchID).Scan(&parentMessageID)
+	if parentMessageID != "" {
+		// Use specific parent message
+		err = tx.QueryRowContext(ctx,
+			"SELECT id, branch_id, cumulative_hash, sequence_number FROM messages WHERE id = $1",
+			parentMessageID,
+		).Scan(&lastMsgID, &branchID, &lastHash, &lastSeq)
 		if err != nil {
 			return nil, err
 		}
-		if parentMessageID.Valid {
-			err = tx.QueryRowContext(ctx, "SELECT cumulative_hash, sequence_number FROM messages WHERE id = $1", parentMessageID.String).Scan(&lastHash, &nextSeq)
+	} else {
+		// Get parent branch's last message to compute cumulative hash and next sequence number
+		err = tx.QueryRowContext(ctx,
+			"SELECT id, cumulative_hash, sequence_number FROM messages WHERE branch_id = $1 ORDER BY sequence_number DESC LIMIT 1",
+			branchID,
+		).Scan(&lastMsgID, &lastHash, &lastSeq)
+
+		if err != nil && err != sql.ErrNoRows {
+			return nil, err
+		}
+
+		if err == sql.ErrNoRows {
+			// First message in branch. If it's a child branch, we need to get the hash from the parent message.
+			var parentMsgID sql.NullString
+			err = tx.QueryRowContext(ctx, "SELECT parent_message_id FROM branches WHERE id = $1", branchID).Scan(&parentMsgID)
 			if err != nil {
 				return nil, err
 			}
-		} else {
-			lastHash = ""
-			nextSeq = 0
+			if parentMsgID.Valid {
+				err = tx.QueryRowContext(ctx, "SELECT cumulative_hash, sequence_number FROM messages WHERE id = $1", parentMsgID.String).Scan(&lastHash, &lastSeq)
+				if err != nil {
+					return nil, err
+				}
+				lastMsgID = parentMsgID.String
+			} else {
+				lastHash = ""
+				lastSeq = 0
+				lastMsgID = ""
+			}
 		}
 	}
-	nextSeq++
 
+	// Check if we need to fork: if lastMsgID is not the tip of branchID
+	if lastMsgID != "" {
+		var hasChildren bool
+		err = tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM messages WHERE branch_id = $1 AND sequence_number > $2)", branchID, lastSeq).Scan(&hasChildren)
+		if err != nil {
+			return nil, err
+		}
+
+		if hasChildren {
+			// Fork! Create a new branch from lastMsgID
+			var newBranch Branch
+			err = tx.QueryRowContext(ctx,
+				"INSERT INTO branches (conversation_id, parent_branch_id, parent_message_id) VALUES ((SELECT conversation_id FROM branches WHERE id = $1), $1, $2) RETURNING id",
+				branchID, lastMsgID,
+			).Scan(&newBranch.ID)
+			if err != nil {
+				return nil, err
+			}
+
+			// Update child_branch_ids in parent message
+			_, err = tx.ExecContext(ctx,
+				"UPDATE messages SET child_branch_ids = array_append(child_branch_ids, $1) WHERE id = $2",
+				newBranch.ID, lastMsgID,
+			)
+			if err != nil {
+				return nil, err
+			}
+
+			branchID = newBranch.ID
+		}
+	}
+
+	nextSeq := lastSeq + 1
 	newHash := computeHash(lastHash, role, content)
 
-	var msg Message
-	if conversationID != "" {
-		err = tx.QueryRowContext(ctx,
-			"INSERT INTO messages (conversation_id, branch_id, role, content, sequence_number, cumulative_hash, upstream_status_code, upstream_error) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, conversation_id, branch_id, role, content, sequence_number, cumulative_hash, created_at, upstream_status_code, upstream_error",
-			conversationID, branchID, role, content, nextSeq, newHash, statusCode, errorText,
-		).Scan(&msg.ID, &msg.ConversationID, &msg.BranchID, &msg.Role, &msg.Content, &msg.SequenceNumber, &msg.CumulativeHash, &msg.CreatedAt, &msg.UpstreamStatusCode, &msg.UpstreamError)
-	} else {
-		err = tx.QueryRowContext(ctx,
-			"INSERT INTO messages (conversation_id, branch_id, role, content, sequence_number, cumulative_hash, upstream_status_code, upstream_error) VALUES ((SELECT conversation_id FROM branches WHERE id = $1), $1, $2, $3, $4, $5, $6, $7) RETURNING id, conversation_id, branch_id, role, content, sequence_number, cumulative_hash, created_at, upstream_status_code, upstream_error",
-			branchID, role, content, nextSeq, newHash, statusCode, errorText,
-		).Scan(&msg.ID, &msg.ConversationID, &msg.BranchID, &msg.Role, &msg.Content, &msg.SequenceNumber, &msg.CumulativeHash, &msg.CreatedAt, &msg.UpstreamStatusCode, &msg.UpstreamError)
+	// Check for idempotency: does this message already exist in this conversation?
+	var existingMsg Message
+	var statusCodeVal sql.NullInt32
+	var errorTextVal sql.NullString
+	err = tx.QueryRowContext(ctx,
+		"SELECT id, conversation_id, branch_id, role, content, sequence_number, cumulative_hash, created_at, upstream_status_code, upstream_error FROM messages WHERE (conversation_id = (SELECT conversation_id FROM branches WHERE id = $1) OR conversation_id = $2) AND cumulative_hash = $3",
+		branchID, conversationID, newHash,
+	).Scan(&existingMsg.ID, &existingMsg.ConversationID, &existingMsg.BranchID, &existingMsg.Role, &existingMsg.Content, &existingMsg.SequenceNumber, &existingMsg.CumulativeHash, &existingMsg.CreatedAt, &statusCodeVal, &errorTextVal)
+
+	if err == nil {
+		// Already exists
+		if statusCodeVal.Valid {
+			existingMsg.UpstreamStatusCode = int(statusCodeVal.Int32)
+		}
+		if errorTextVal.Valid {
+			existingMsg.UpstreamError = errorTextVal.String
+		}
+		if err := tx.Commit(); err != nil {
+			return nil, err
+		}
+		return &existingMsg, nil
+	} else if err != sql.ErrNoRows {
+		return nil, err
 	}
+
+	var msg Message
+	err = tx.QueryRowContext(ctx,
+		"INSERT INTO messages (conversation_id, branch_id, role, content, sequence_number, cumulative_hash, upstream_status_code, upstream_error) VALUES ((SELECT conversation_id FROM branches WHERE id = $1), $1, $2, $3, $4, $5, $6, $7) RETURNING id, conversation_id, branch_id, role, content, sequence_number, cumulative_hash, created_at, upstream_status_code, upstream_error",
+		branchID, role, content, nextSeq, newHash, statusCode, errorText,
+	).Scan(&msg.ID, &msg.ConversationID, &msg.BranchID, &msg.Role, &msg.Content, &msg.SequenceNumber, &msg.CumulativeHash, &msg.CreatedAt, &msg.UpstreamStatusCode, &msg.UpstreamError)
+
 	if err != nil {
 		return nil, err
 	}
@@ -182,18 +249,18 @@ func (s *PostgresStorage) AddMessage(ctx context.Context, conversationID string,
 func (s *PostgresStorage) GetBranchHistory(ctx context.Context, branchID string) ([]Message, error) {
 	query := `
 		WITH RECURSIVE branch_path AS (
-			SELECT id, parent_branch_id, parent_message_id 
+			SELECT id, parent_branch_id, parent_message_id, 0 as level
 			FROM branches WHERE id = $1
 			UNION ALL
-			SELECT b.id, b.parent_branch_id, b.parent_message_id
+			SELECT b.id, b.parent_branch_id, b.parent_message_id, bp.level + 1
 			FROM branches b
 			JOIN branch_path bp ON b.id = bp.parent_branch_id
 		)
 		SELECT m.id, m.conversation_id, m.branch_id, m.role, m.content, m.sequence_number, m.cumulative_hash, m.created_at, m.upstream_status_code, m.upstream_error
 		FROM messages m
 		JOIN branch_path bp ON m.branch_id = bp.id
-		WHERE (m.branch_id = $1) 
-		   OR (m.sequence_number <= (SELECT m2.sequence_number FROM messages m2 WHERE m2.id = bp.parent_message_id))
+		WHERE (bp.level = 0) 
+		   OR (m.sequence_number <= (SELECT m2.sequence_number FROM messages m2 WHERE m2.id = (SELECT bp2.parent_message_id FROM branch_path bp2 WHERE bp2.level = bp.level - 1)))
 		ORDER BY m.sequence_number ASC;
 	`
 	rows, err := s.db.QueryContext(ctx, query, branchID)
@@ -221,33 +288,39 @@ func (s *PostgresStorage) GetBranchHistory(ctx context.Context, branchID string)
 	return history, nil
 }
 
-func (s *PostgresStorage) FindBranchByHistory(ctx context.Context, conversationID string, history []struct{ Role, Content string }) (string, error) {
+func (s *PostgresStorage) FindBranchByHistory(ctx context.Context, conversationID string, history []struct{ Role, Content string }) (string, string, error) {
 	currentHash := ""
+	var deepestBranchID string
+	var deepestMessageID string
+
 	for _, m := range history {
 		currentHash = computeHash(currentHash, m.Role, m.Content)
+		var bID, mID string
+		var err error
+		if conversationID != "" {
+			err = s.db.QueryRowContext(ctx,
+				"SELECT branch_id, id FROM messages WHERE conversation_id = $1 AND cumulative_hash = $2",
+				conversationID, currentHash,
+			).Scan(&bID, &mID)
+		} else {
+			err = s.db.QueryRowContext(ctx,
+				"SELECT branch_id, id FROM messages WHERE cumulative_hash = $1",
+				currentHash,
+			).Scan(&bID, &mID)
+		}
+
+		if err == nil {
+			deepestBranchID = bID
+			deepestMessageID = mID
+		} else if err != sql.ErrNoRows {
+			return "", "", err
+		} else {
+			// No more matches
+			break
+		}
 	}
 
-	var branchID string
-	var err error
-	if conversationID != "" {
-		err = s.db.QueryRowContext(ctx,
-			"SELECT branch_id FROM messages WHERE conversation_id = $1 AND cumulative_hash = $2",
-			conversationID, currentHash,
-		).Scan(&branchID)
-	} else {
-		err = s.db.QueryRowContext(ctx,
-			"SELECT branch_id FROM messages WHERE cumulative_hash = $1",
-			currentHash,
-		).Scan(&branchID)
-	}
-
-	if err == sql.ErrNoRows {
-		return "", nil
-	}
-	if err != nil {
-		return "", err
-	}
-	return branchID, nil
+	return deepestBranchID, deepestMessageID, nil
 }
 
 func (s *PostgresStorage) CreateBranch(ctx context.Context, conversationID string, parentBranchID string, parentMessageID string) (*Branch, error) {

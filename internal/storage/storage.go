@@ -45,14 +45,16 @@ type Storage interface {
 	GetConversation(ctx context.Context, id string) (*Conversation, error)
 
 	// AddMessage adds a message to an existing branch.
-	// If the history provided diverged from the existing branch history, a new branch is created.
-	AddMessage(ctx context.Context, conversationID string, branchID string, role, content string, statusCode int, errorText string) (*Message, error)
+	// If parentMessageID is provided, it uses that message as the parent.
+	// If the parent message is not the tip of its branch, a new branch is automatically created.
+	AddMessage(ctx context.Context, conversationID string, branchID string, parentMessageID string, role, content string, statusCode int, errorText string) (*Message, error)
 
 	// GetBranchHistory retrieves the full message history for a specific branch.
 	GetBranchHistory(ctx context.Context, branchID string) ([]Message, error)
 
-	// FindBranchByHistory finds a branch ID that matches the provided sequence of (role, content) pairs.
-	FindBranchByHistory(ctx context.Context, conversationID string, history []struct{ Role, Content string }) (string, error)
+	// FindBranchByHistory finds the deepest matching message and its branch ID
+	// for the provided sequence of (role, content) pairs.
+	FindBranchByHistory(ctx context.Context, conversationID string, history []struct{ Role, Content string }) (branchID string, messageID string, err error)
 
 	// CreateBranch creates a new branch diverging from a specific message.
 	CreateBranch(ctx context.Context, conversationID string, parentBranchID string, parentMessageID string) (*Branch, error)

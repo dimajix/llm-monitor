@@ -172,16 +172,30 @@ func (oi *GenerateInterceptor) saveToStorage(ctx context.Context, ollamaState *g
 		{Role: "user", Content: ollamaState.request.Prompt},
 	}
 
-	branchID, err := oi.Storage.FindBranchByHistory(ctx, "", history)
+	branchID, messageID, err := oi.Storage.FindBranchByHistory(ctx, "", history)
 	if err != nil {
 		logrus.WithError(err).Warnf("[%s] Could not find branch by history", oi.Name)
 	}
 
 	if branchID != "" {
-		// If we found a branch, we add the assistant response to it.
-		// Since we have the branch ID, we don't strictly need the conversation ID
-		// as AddMessage will look it up if passed as empty.
-		_, err = oi.Storage.AddMessage(ctx, "", branchID, "assistant", ollamaState.response.Response, ollamaState.statusCode, "")
+		// If we found a message, we might need to catch up if history matched partially.
+		// For Generate, history is only 1 message (the prompt).
+		// If messageID is empty, it means not even the prompt matched.
+		// If messageID is not empty, it means the prompt matched.
+
+		targetBranchID := branchID
+		currentParentID := messageID
+		if messageID == "" {
+			// Prompt didn't match (shouldn't happen if branchID != "")
+			// But just in case, add it.
+			msg, err := oi.Storage.AddMessage(ctx, "", branchID, "", "user", ollamaState.request.Prompt, 0, "")
+			if err == nil {
+				targetBranchID = msg.BranchID
+				currentParentID = msg.ID
+			}
+		}
+
+		_, err = oi.Storage.AddMessage(ctx, "", targetBranchID, currentParentID, "assistant", ollamaState.response.Response, ollamaState.statusCode, "")
 		if err != nil {
 			logrus.WithError(err).Warnf("[%s] Could not add assistant response to storage", oi.Name)
 		}
@@ -193,8 +207,12 @@ func (oi *GenerateInterceptor) saveToStorage(ctx context.Context, ollamaState *g
 		if err != nil {
 			logrus.WithError(err).Warnf("[%s] Could not create conversation in storage", oi.Name)
 		} else {
-			_, _ = oi.Storage.AddMessage(ctx, conv.ID, branch.ID, "user", ollamaState.request.Prompt, 0, "")
-			_, _ = oi.Storage.AddMessage(ctx, conv.ID, branch.ID, "assistant", ollamaState.response.Response, ollamaState.statusCode, "")
+			msg, _ := oi.Storage.AddMessage(ctx, conv.ID, branch.ID, "", "user", ollamaState.request.Prompt, 0, "")
+			var currentParentID string
+			if msg != nil {
+				currentParentID = msg.ID
+			}
+			_, _ = oi.Storage.AddMessage(ctx, conv.ID, branch.ID, currentParentID, "assistant", ollamaState.response.Response, ollamaState.statusCode, "")
 		}
 	}
 }
