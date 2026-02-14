@@ -13,12 +13,24 @@ type Config struct {
 	Port       int         `yaml:"port"`
 	Intercepts []Intercept `yaml:"intercepts"`
 	Logging    Logging     `yaml:"logging,omitempty"`
+	Storage    Storage     `yaml:"storage,omitempty"`
 }
 
 // Intercept represents an interceptor configuration
 type Intercept struct {
 	Endpoint    string `yaml:"endpoint"`
 	Interceptor string `yaml:"interceptor"`
+}
+
+// Storage represents the storage configuration
+type Storage struct {
+	Type     string          `yaml:"type"`
+	Postgres *PostgresConfig `yaml:"postgres,omitempty"`
+}
+
+// PostgresConfig represents the PostgreSQL configuration
+type PostgresConfig struct {
+	DSN string `yaml:"dsn"`
 }
 
 // Logging represents the logging configuration

@@ -13,3 +13,8 @@ intercepts:
     interceptor: "OllamaGenerateInterceptor"
   - endpoint: "/api/chat"
     interceptor: "OllamaChatInterceptor"
+
+storage:
+  type: "postgres"
+  postgres:
+    dsn: "postgres://user:password@localhost:5432/llm_monitor?sslmode=disable"

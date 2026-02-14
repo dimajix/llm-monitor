@@ -2,9 +2,11 @@ package ollama
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"llm-monitor/internal/interceptor"
+	"llm-monitor/internal/storage"
 	"net/http"
 	"time"
 
@@ -13,7 +15,8 @@ import (
 
 // ChatInterceptor intercepts chat messages between client and Ollama server
 type ChatInterceptor struct {
-	Name string
+	Name    string
+	Storage storage.Storage
 }
 
 // chatMessage represents a chat message
@@ -132,6 +135,53 @@ func (oi *ChatInterceptor) ChunkInterceptor(chunk []byte, state interceptor.Stat
 func (oi *ChatInterceptor) OnComplete(state interceptor.State) {
 	ollamaState, _ := state.(*chatState)
 	logrus.Printf("[%s] Request completed for model: %s", oi.Name, ollamaState.response.Model)
+
+	if oi.Storage != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		// 1. Convert messages for FindBranchByHistory
+		history := make([]struct{ Role, Content string }, len(ollamaState.request.Messages))
+		for i, m := range ollamaState.request.Messages {
+			history[i] = struct{ Role, Content string }{Role: m.Role, Content: m.Content}
+		}
+
+		// 2. Try to find existing branch or create new conversation
+		// For simplicity, we'll use a fixed conversation ID or handle it based on some session ID if available.
+		// Since we don't have a session ID yet, let's see how AddMessage is supposed to work.
+		// storage.AddMessage(ctx, conversationID, branchID, role, content)
+		// Actually, FindBranchByHistory should find the branch that corresponds to the history.
+
+		// Let's just log for now if storage is present, and maybe implement a basic save.
+		// If it's a new conversation, we'd need to create it.
+		// For now, let's try to find a branch that matches the history.
+		branchID, err := oi.Storage.FindBranchByHistory(ctx, "", history)
+		if err != nil {
+			logrus.WithError(err).Warnf("[%s] Could not find branch by history", oi.Name)
+		}
+
+		// If we found a branch, we add the assistant response to it.
+		if branchID != "" {
+			_, err = oi.Storage.AddMessage(ctx, "", branchID, ollamaState.response.Message.Role, ollamaState.response.Message.Content)
+			if err != nil {
+				logrus.WithError(err).Warnf("[%s] Could not add assistant message to storage", oi.Name)
+			}
+		} else {
+			// New conversation
+			conv, branch, err := oi.Storage.CreateConversation(ctx, map[string]any{"model": ollamaState.request.Model})
+			if err != nil {
+				logrus.WithError(err).Warnf("[%s] Could not create conversation in storage", oi.Name)
+			} else {
+				// Add all messages to the new branch
+				for _, m := range ollamaState.request.Messages {
+					_, _ = oi.Storage.AddMessage(ctx, conv.ID, branch.ID, m.Role, m.Content)
+				}
+				// Add the assistant response
+				_, _ = oi.Storage.AddMessage(ctx, conv.ID, branch.ID, ollamaState.response.Message.Role, ollamaState.response.Message.Content)
+			}
+		}
+	}
+
 	for _, m := range ollamaState.request.Messages {
 		logrus.Printf("[%s] Request [%s]: %s", oi.Name, m.Role, m.Content)
 	}

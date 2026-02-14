@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 
+	_ "github.com/lib/pq"
 	"github.com/sirupsen/logrus"
 )
 
@@ -14,8 +15,12 @@ type PostgresStorage struct {
 	db *sql.DB
 }
 
-func NewPostgresStorage(db *sql.DB) *PostgresStorage {
-	return &PostgresStorage{db: db}
+func NewPostgresStorage(dsn string) (*PostgresStorage, error) {
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		return nil, err
+	}
+	return &PostgresStorage{db: db}, nil
 }
 
 func (s *PostgresStorage) CreateConversation(ctx context.Context, metadata map[string]interface{}) (*Conversation, *Branch, error) {
