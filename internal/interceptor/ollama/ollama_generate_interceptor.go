@@ -64,7 +64,9 @@ func (oi *GenerateInterceptor) RequestInterceptor(req *http.Request, state inter
 	if err != nil {
 		return err
 	}
-	defer req.Body.Close()
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(req.Body)
 
 	// Store the request body in state
 	ollamaState, _ := state.(*generateState)
@@ -84,7 +86,7 @@ func (oi *GenerateInterceptor) RequestInterceptor(req *http.Request, state inter
 }
 
 // ResponseInterceptor intercepts the response from /api/generate
-func (oi *GenerateInterceptor) ResponseInterceptor(resp *http.Response, state interceptor.State) error {
+func (oi *GenerateInterceptor) ResponseInterceptor(_ *http.Response, _ interceptor.State) error {
 	return nil
 }
 
@@ -133,6 +135,6 @@ func (oi *GenerateInterceptor) OnComplete(state interceptor.State) {
 }
 
 // OnError is called when an error occurs
-func (oi *GenerateInterceptor) OnError(state interceptor.State, err error) {
+func (oi *GenerateInterceptor) OnError(_ interceptor.State, err error) {
 	logrus.WithError(err).Warningf("[%s] Error occurred: %v", oi.Name, err)
 }

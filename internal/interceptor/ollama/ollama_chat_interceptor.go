@@ -68,7 +68,9 @@ func (oi *ChatInterceptor) RequestInterceptor(req *http.Request, state intercept
 	if err != nil {
 		return err
 	}
-	defer req.Body.Close()
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(req.Body)
 
 	// Extract model name
 	ollamaState, _ := state.(*chatState)
@@ -88,7 +90,7 @@ func (oi *ChatInterceptor) RequestInterceptor(req *http.Request, state intercept
 }
 
 // ResponseInterceptor intercepts the response to extract response messages
-func (oi *ChatInterceptor) ResponseInterceptor(resp *http.Response, state interceptor.State) error {
+func (oi *ChatInterceptor) ResponseInterceptor(_ *http.Response, _ interceptor.State) error {
 	return nil
 }
 
@@ -137,6 +139,6 @@ func (oi *ChatInterceptor) OnComplete(state interceptor.State) {
 }
 
 // OnError handles errors during request processing
-func (oi *ChatInterceptor) OnError(state interceptor.State, err error) {
+func (oi *ChatInterceptor) OnError(_ interceptor.State, err error) {
 	logrus.WithError(err).Warningf("[%s] Error occurred", oi.Name)
 }
