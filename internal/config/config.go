@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v2"
 )
@@ -45,8 +46,11 @@ func LoadConfig(filename string) (*Config, error) {
 		return nil, fmt.Errorf("error reading config file: %v", err)
 	}
 
+	// Expand environment variables
+	expandedData := expandEnv(string(data))
+
 	var config Config
-	err = yaml.Unmarshal(data, &config)
+	err = yaml.Unmarshal([]byte(expandedData), &config)
 	if err != nil {
 		return nil, err
 	}
@@ -57,4 +61,19 @@ func LoadConfig(filename string) (*Config, error) {
 	}
 
 	return &config, nil
+}
+
+// expandEnv expands environment variables in the form ${VAR} or ${VAR:-default}
+func expandEnv(s string) string {
+	return os.Expand(s, func(key string) string {
+		if strings.Contains(key, ":-") {
+			parts := strings.SplitN(key, ":-", 2)
+			val, ok := os.LookupEnv(parts[0])
+			if ok {
+				return val
+			}
+			return parts[1]
+		}
+		return os.Getenv(key)
+	})
 }

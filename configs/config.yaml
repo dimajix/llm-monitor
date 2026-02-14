@@ -17,4 +17,4 @@ intercepts:
 storage:
   type: "postgres"
   postgres:
-    dsn: "postgres://user:password@localhost:5432/llm_monitor?sslmode=disable"
+    dsn: "postgres://${DB_USER:-user}:${DB_PASSWORD:-password}@${DB_HOST:-localhost}:${DB_PORT:-5432}/${DB_NAME:-llm_monitor}?sslmode=disable"
