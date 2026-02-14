@@ -16,11 +16,20 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o llm-monitor cmd/main.go
 # Final stage
 FROM alpine:latest
 
-WORKDIR /root/
+# Create a non-privileged user
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+WORKDIR /app
 
 # Copy the binary from the builder stage
 COPY --from=builder /app/llm-monitor .
-COPY configs/config.yaml /app/config/config.yaml
+COPY --from=builder /app/configs/config.yaml ./config/config.yaml
+
+# Set ownership to the non-privileged user
+RUN chown -R appuser:appgroup /app
+
+# Use the non-privileged user
+USER appuser
 
 # Expose the port the app runs on
 EXPOSE 8080
