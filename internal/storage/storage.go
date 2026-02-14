@@ -1,0 +1,57 @@
+package storage
+
+import (
+	"context"
+	"time"
+)
+
+// Conversation represents a high-level container for a chat session.
+type Conversation struct {
+	ID        string                 `json:"id"`
+	CreatedAt time.Time              `json:"created_at"`
+	Metadata  map[string]interface{} `json:"metadata,omitzero"`
+}
+
+// Branch represents a path within a conversation.
+type Branch struct {
+	ID              string    `json:"id"`
+	ConversationID  string    `json:"conversation_id"`
+	ParentBranchID  *string   `json:"parent_branch_id,omitzero"`
+	ParentMessageID *string   `json:"parent_message_id,omitzero"`
+	CreatedAt       time.Time `json:"created_at"`
+}
+
+// Message represents a single chat message.
+type Message struct {
+	ID             string    `json:"id"`
+	ConversationID string    `json:"conversation_id"`
+	BranchID       string    `json:"branch_id"`
+	Role           string    `json:"role"`
+	Content        string    `json:"content"`
+	SequenceNumber int       `json:"sequence_number"`
+	CumulativeHash string    `json:"cumulative_hash"`
+	ChildBranchIDs []string  `json:"child_branch_ids,omitzero"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+// Storage defines the interface for persisting and retrieving conversation data.
+type Storage interface {
+	// CreateConversation creates a new conversation and its initial branch.
+	CreateConversation(ctx context.Context, metadata map[string]interface{}) (*Conversation, *Branch, error)
+
+	// GetConversation retrieves a conversation by ID.
+	GetConversation(ctx context.Context, id string) (*Conversation, error)
+
+	// AddMessage adds a message to an existing branch.
+	// If the history provided diverged from the existing branch history, a new branch is created.
+	AddMessage(ctx context.Context, conversationID string, branchID string, role, content string) (*Message, error)
+
+	// GetBranchHistory retrieves the full message history for a specific branch.
+	GetBranchHistory(ctx context.Context, branchID string) ([]Message, error)
+
+	// FindBranchByHistory finds a branch ID that matches the provided sequence of (role, content) pairs.
+	FindBranchByHistory(ctx context.Context, conversationID string, history []struct{ Role, Content string }) (string, error)
+
+	// CreateBranch creates a new branch diverging from a specific message.
+	CreateBranch(ctx context.Context, conversationID string, parentBranchID string, parentMessageID string) (*Branch, error)
+}
