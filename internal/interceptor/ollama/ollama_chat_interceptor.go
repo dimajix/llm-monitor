@@ -149,7 +149,16 @@ func (oi *ChatInterceptor) OnComplete(state interceptor.State) {
 		ctx, cancel := context.WithTimeout(context.Background(), oi.Timeout)
 		defer cancel()
 
-		oi.saveToStorage(ctx, ollamaState)
+		history := make([]storage.SimpleMessage, len(ollamaState.request.Messages))
+		for i, m := range ollamaState.request.Messages {
+			history[i] = storage.SimpleMessage{Role: m.Role, Content: m.Content}
+		}
+		assistantMsg := storage.SimpleMessage{
+			Role:    ollamaState.response.Message.Role,
+			Content: ollamaState.response.Message.Content,
+		}
+
+		saveToStorage(ctx, oi.Storage, oi.Name, ollamaState.response.Model, history, assistantMsg, ollamaState.statusCode)
 	}
 }
 
@@ -162,77 +171,15 @@ func (oi *ChatInterceptor) OnError(state interceptor.State, err error) {
 		ctx, cancel := context.WithTimeout(context.Background(), oi.Timeout)
 		defer cancel()
 
-		oi.saveToStorage(ctx, ollamaState)
-	}
-}
-
-func (oi *ChatInterceptor) saveToStorage(ctx context.Context, ollamaState *chatState) {
-	// 1. Convert messages for FindMessageByHistory
-	history := make([]struct{ Role, Content string }, len(ollamaState.request.Messages))
-	for i, m := range ollamaState.request.Messages {
-		history[i] = struct{ Role, Content string }{Role: m.Role, Content: m.Content}
-	}
-
-	// 2. Try to find the deepest matching message ID
-	var currentParentID string
-	var currentBranchID string
-
-	var curHistory = history
-	for len(curHistory) > 0 {
-		pid, err := oi.Storage.FindMessageByHistory(ctx, curHistory)
-		if err != nil {
-			logrus.WithError(err).Warnf("[%s] Could not find message by history", oi.Name)
-			return
+		history := make([]storage.SimpleMessage, len(ollamaState.request.Messages))
+		for i, m := range ollamaState.request.Messages {
+			history[i] = storage.SimpleMessage{Role: m.Role, Content: m.Content}
 		}
-		if pid != "" {
-			currentParentID = pid
-			break
+		assistantMsg := storage.SimpleMessage{
+			Role:    ollamaState.response.Message.Role,
+			Content: ollamaState.response.Message.Content,
 		}
-		newLen := len(curHistory) - 1
-		curHistory = curHistory[0:newLen]
-		if newLen <= 0 {
-			currentParentID = ""
-			break
-		}
-	}
 
-	// Create new conversation if no message is found
-	if currentParentID == "" {
-		// New conversation
-		_, branch, err := oi.Storage.CreateConversation(ctx, map[string]any{"model": ollamaState.request.Model})
-		if err != nil {
-			logrus.WithError(err).Warnf("[%s] Could not create conversation in storage", oi.Name)
-			return
-		}
-		currentBranchID = branch.ID
-	}
-
-	// 3. Add missing messages from history
-	// We need to find where history diverges from what's already in the DB.
-	// FindMessageByHistory only gives us the last matched ID.
-	// To be efficient, we can check how many messages from the beginning are already in the DB.
-	// For now, let's just iterate through history and let AddMessage handle idempotency via hash.
-	for i, m := range ollamaState.request.Messages[len(curHistory):] {
-		msg, err := oi.Storage.AddMessage(ctx, currentParentID, &storage.Message{
-			Role:     m.Role,
-			Content:  m.Content,
-			BranchID: currentBranchID,
-		})
-		if err != nil {
-			logrus.WithError(err).Warnf("[%s] Could not add history message %d to storage", oi.Name, i)
-			return
-		}
-		currentParentID = msg.ID
-		currentBranchID = "" // Only need it for the first message if no parent
-	}
-
-	// 4. Add the assistant response
-	_, err := oi.Storage.AddMessage(ctx, currentParentID, &storage.Message{
-		Role:               ollamaState.response.Message.Role,
-		Content:            ollamaState.response.Message.Content,
-		UpstreamStatusCode: ollamaState.statusCode,
-	})
-	if err != nil {
-		logrus.WithError(err).Warnf("[%s] Could not add assistant message to storage", oi.Name)
+		saveToStorage(ctx, oi.Storage, oi.Name, ollamaState.response.Model, history, assistantMsg, ollamaState.statusCode)
 	}
 }

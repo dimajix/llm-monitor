@@ -21,13 +21,18 @@ type Branch struct {
 	CreatedAt       time.Time `json:"created_at"`
 }
 
+// SimpleMessage represents a basic chat message with role and content.
+type SimpleMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
 // Message represents a single chat message.
 type Message struct {
+	SimpleMessage
 	ID                 string    `json:"id"`
 	ConversationID     string    `json:"conversation_id"`
 	BranchID           string    `json:"branch_id"`
-	Role               string    `json:"role"`
-	Content            string    `json:"content"`
 	SequenceNumber     int       `json:"sequence_number"`
 	ChildBranchIDs     []string  `json:"child_branch_ids,omitzero"`
 	CreatedAt          time.Time `json:"created_at"`
@@ -54,5 +59,5 @@ type Storage interface {
 
 	// FindMessageByHistory finds the deepest matching message ID
 	// for the provided sequence of (role, content) pairs.
-	FindMessageByHistory(ctx context.Context, history []struct{ Role, Content string }) (messageID string, err error)
+	FindMessageByHistory(ctx context.Context, history []SimpleMessage) (messageID string, err error)
 }

@@ -247,7 +247,7 @@ func (s *PostgresStorage) GetBranchHistory(ctx context.Context, branchID string)
 	return history, nil
 }
 
-func (s *PostgresStorage) FindMessageByHistory(ctx context.Context, history []struct{ Role, Content string }) (string, error) {
+func (s *PostgresStorage) FindMessageByHistory(ctx context.Context, history []SimpleMessage) (string, error) {
 	if len(history) == 0 {
 		return "", nil
 	}

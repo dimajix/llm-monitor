@@ -144,7 +144,15 @@ func (oi *GenerateInterceptor) OnComplete(state interceptor.State) {
 		ctx, cancel := context.WithTimeout(context.Background(), oi.Timeout)
 		defer cancel()
 
-		oi.saveToStorage(ctx, ollamaState)
+		history := []storage.SimpleMessage{
+			{Role: "user", Content: ollamaState.request.Prompt},
+		}
+		assistantMsg := storage.SimpleMessage{
+			Role:    "assistant",
+			Content: ollamaState.response.Response,
+		}
+
+		saveToStorage(ctx, oi.Storage, oi.Name, ollamaState.response.Model, history, assistantMsg, ollamaState.statusCode)
 	}
 }
 
@@ -157,58 +165,14 @@ func (oi *GenerateInterceptor) OnError(state interceptor.State, err error) {
 		ctx, cancel := context.WithTimeout(context.Background(), oi.Timeout)
 		defer cancel()
 
-		oi.saveToStorage(ctx, ollamaState)
-	}
-}
-
-func (oi *GenerateInterceptor) saveToStorage(ctx context.Context, ollamaState *generateState) {
-	// For Generate, we have a Prompt (User) and a Response (Assistant)
-	history := []struct{ Role, Content string }{
-		{Role: "user", Content: ollamaState.request.Prompt},
-	}
-
-	// 2. Try to find the deepest matching message ID
-	lastMatchedMessageID, err := oi.Storage.FindMessageByHistory(ctx, history)
-	if err != nil {
-		logrus.WithError(err).Warnf("[%s] Could not find message by history", oi.Name)
-	}
-
-	var currentParentID string
-	var currentBranchID string
-
-	if lastMatchedMessageID == "" {
-		// New conversation
-		_, branch, err := oi.Storage.CreateConversation(ctx, map[string]any{"model": ollamaState.request.Model})
-		if err != nil {
-			logrus.WithError(err).Warnf("[%s] Could not create conversation in storage", oi.Name)
-			return
+		history := []storage.SimpleMessage{
+			{Role: "user", Content: ollamaState.request.Prompt},
 		}
-		currentBranchID = branch.ID
-	} else {
-		currentParentID = lastMatchedMessageID
-	}
-
-	// 3. Add prompt message if not already present
-	msg, err := oi.Storage.AddMessage(ctx, currentParentID, &storage.Message{
-		Role:     "user",
-		Content:  ollamaState.request.Prompt,
-		BranchID: currentBranchID,
-	})
-	if err != nil {
-		logrus.WithError(err).Warnf("[%s] Could not add prompt message to storage", oi.Name)
-		return
-	}
-	currentParentID = msg.ID
-
-	// 4. Add the assistant response
-	if ollamaState.response.Response != "" || ollamaState.statusCode != 0 {
-		_, err = oi.Storage.AddMessage(ctx, currentParentID, &storage.Message{
-			Role:               "assistant",
-			Content:            ollamaState.response.Response,
-			UpstreamStatusCode: ollamaState.statusCode,
-		})
-		if err != nil {
-			logrus.WithError(err).Warnf("[%s] Could not add assistant message to storage", oi.Name)
+		assistantMsg := storage.SimpleMessage{
+			Role:    "assistant",
+			Content: ollamaState.response.Response,
 		}
+
+		saveToStorage(ctx, oi.Storage, oi.Name, ollamaState.response.Model, history, assistantMsg, ollamaState.statusCode)
 	}
 }
