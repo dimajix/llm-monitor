@@ -145,14 +145,15 @@ func (oi *GenerateInterceptor) OnComplete(state interceptor.State) {
 		defer cancel()
 
 		history := []storage.SimpleMessage{
-			{Role: "user", Content: ollamaState.request.Prompt},
+			{Role: "user", Content: ollamaState.request.Prompt, Model: ollamaState.request.Model},
 		}
 		assistantMsg := storage.SimpleMessage{
 			Role:    "assistant",
 			Content: ollamaState.response.Response,
+			Model:   ollamaState.response.Model,
 		}
 
-		saveToStorage(ctx, oi.Storage, oi.Name, ollamaState.response.Model, history, assistantMsg, ollamaState.statusCode)
+		saveToStorage(ctx, oi.Storage, oi.Name, history, assistantMsg, ollamaState.statusCode)
 	}
 }
 
@@ -166,13 +167,14 @@ func (oi *GenerateInterceptor) OnError(state interceptor.State, err error) {
 		defer cancel()
 
 		history := []storage.SimpleMessage{
-			{Role: "user", Content: ollamaState.request.Prompt},
+			{Role: "user", Content: ollamaState.request.Prompt, Model: ollamaState.request.Model},
 		}
 		assistantMsg := storage.SimpleMessage{
 			Role:    "assistant",
 			Content: ollamaState.response.Response,
+			Model:   ollamaState.response.Model,
 		}
 
-		saveToStorage(ctx, oi.Storage, oi.Name, ollamaState.response.Model, history, assistantMsg, ollamaState.statusCode)
+		saveToStorage(ctx, oi.Storage, oi.Name, history, assistantMsg, ollamaState.statusCode)
 	}
 }

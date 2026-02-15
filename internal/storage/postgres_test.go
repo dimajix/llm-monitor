@@ -33,24 +33,24 @@ func TestPostgresStorage_Branching(t *testing.T) {
 	}
 
 	// 2. Add two messages
-	m1, err := storage.AddMessage(ctx, "", &Message{BranchID: branch.ID, Role: "user", Content: "Hello"})
+	m1, err := storage.AddMessage(ctx, "", &Message{BranchID: branch.ID, SimpleMessage: SimpleMessage{Role: "user", Content: "Hello"}})
 	if err != nil {
 		t.Fatalf("Failed to add message 1: %v", err)
 	}
-	m2, err := storage.AddMessage(ctx, m1.ID, &Message{Role: "assistant", Content: "Hi there!"})
+	m2, err := storage.AddMessage(ctx, m1.ID, &Message{SimpleMessage: SimpleMessage{Role: "assistant", Content: "Hi there!"}})
 	if err != nil {
 		t.Fatalf("Failed to add message 2: %v", err)
 	}
 
 	// 3. Add a third message to the same branch
-	m3, err := storage.AddMessage(ctx, m2.ID, &Message{Role: "user", Content: "How are you?"})
+	m3, err := storage.AddMessage(ctx, m2.ID, &Message{SimpleMessage: SimpleMessage{Role: "user", Content: "How are you?"}})
 	if err != nil {
 		t.Fatalf("Failed to add message 3: %v", err)
 	}
 
 	// 4. Now fork from m2 by adding a DIFFERENT message.
 	// We use m2.ID as the parent.
-	m4, err := storage.AddMessage(ctx, m2.ID, &Message{Role: "user", Content: "What is the weather?"})
+	m4, err := storage.AddMessage(ctx, m2.ID, &Message{SimpleMessage: SimpleMessage{Role: "user", Content: "What is the weather?"}})
 	if err != nil {
 		t.Fatalf("Failed to add message 4: %v", err)
 	}
@@ -109,7 +109,7 @@ func TestPostgresStorage_Branching(t *testing.T) {
 	}
 
 	// 7. Test Idempotency (now removed, should create a new message)
-	m4_repeat, err := storage.AddMessage(ctx, m2.ID, &Message{Role: "user", Content: "What is the weather?"})
+	m4_repeat, err := storage.AddMessage(ctx, m2.ID, &Message{SimpleMessage: SimpleMessage{Role: "user", Content: "What is the weather?"}})
 	if err != nil {
 		t.Fatalf("Failed to add message 4 repeat: %v", err)
 	}
@@ -118,10 +118,10 @@ func TestPostgresStorage_Branching(t *testing.T) {
 	}
 
 	// 8. Test FindMessageByHistory
-	history := []struct{ Role, Content string }{
-		{"user", "Hello"},
-		{"assistant", "Hi there!"},
-		{"user", "What is the weather?"},
+	history := []SimpleMessage{
+		{Role: "user", Content: "Hello"},
+		{Role: "assistant", Content: "Hi there!"},
+		{Role: "user", Content: "What is the weather?"},
 	}
 	foundID, err := storage.FindMessageByHistory(ctx, history)
 	if err != nil {
@@ -132,9 +132,9 @@ func TestPostgresStorage_Branching(t *testing.T) {
 	}
 
 	// Test partial history
-	historyPartial := []struct{ Role, Content string }{
-		{"user", "Hello"},
-		{"assistant", "Hi there!"},
+	historyPartial := []SimpleMessage{
+		{Role: "user", Content: "Hello"},
+		{Role: "assistant", Content: "Hi there!"},
 	}
 	foundIDPartial, err := storage.FindMessageByHistory(ctx, historyPartial)
 	if err != nil {

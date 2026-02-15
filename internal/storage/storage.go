@@ -25,6 +25,7 @@ type Branch struct {
 type SimpleMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
+	Model   string `json:"model,omitzero"`
 }
 
 // Message represents a single chat message.

@@ -27,6 +27,7 @@ CREATE TABLE messages (
     branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
     role VARCHAR(50) NOT NULL,
     content TEXT NOT NULL,
+    model VARCHAR(255),
     sequence_number INT NOT NULL,
     cumulative_hash VARCHAR(64) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -56,4 +57,4 @@ CREATE TABLE IF NOT EXISTS schema_version (
     applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-INSERT INTO schema_version (version) VALUES (2) ON CONFLICT (version) DO UPDATE SET version = 2;
+INSERT INTO schema_version (version) VALUES (3) ON CONFLICT (version) DO UPDATE SET version = 3;

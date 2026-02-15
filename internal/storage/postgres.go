@@ -185,9 +185,9 @@ func (s *PostgresStorage) AddMessage(ctx context.Context, parentMessageID string
 
 	var msg Message
 	err = tx.QueryRowContext(ctx,
-		"INSERT INTO messages (conversation_id, branch_id, role, content, sequence_number, cumulative_hash, upstream_status_code, upstream_error, parent_message_id) VALUES ((SELECT conversation_id FROM branches WHERE id = $1), $1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, conversation_id, branch_id, role, content, sequence_number, created_at, upstream_status_code, upstream_error, parent_message_id",
-		branchID, message.Role, message.Content, nextSeq, newHash, message.UpstreamStatusCode, message.UpstreamError, optional(parentMessageID),
-	).Scan(&msg.ID, &msg.ConversationID, &msg.BranchID, &msg.Role, &msg.Content, &msg.SequenceNumber, &msg.CreatedAt, &msg.UpstreamStatusCode, &msg.UpstreamError, &msg.ParentMessageID)
+		"INSERT INTO messages (conversation_id, branch_id, role, content, model, sequence_number, cumulative_hash, upstream_status_code, upstream_error, parent_message_id) VALUES ((SELECT conversation_id FROM branches WHERE id = $1), $1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, conversation_id, branch_id, role, content, model, sequence_number, created_at, upstream_status_code, upstream_error, parent_message_id",
+		branchID, message.Role, message.Content, message.Model, nextSeq, newHash, message.UpstreamStatusCode, message.UpstreamError, optional(parentMessageID),
+	).Scan(&msg.ID, &msg.ConversationID, &msg.BranchID, &msg.Role, &msg.Content, &msg.Model, &msg.SequenceNumber, &msg.CreatedAt, &msg.UpstreamStatusCode, &msg.UpstreamError, &msg.ParentMessageID)
 
 	if err != nil {
 		return nil, err
@@ -210,7 +210,7 @@ func (s *PostgresStorage) GetBranchHistory(ctx context.Context, branchID string)
 			FROM branches b
 			JOIN branch_path bp ON b.id = bp.parent_branch_id
 		)
-		SELECT m.id, m.conversation_id, m.branch_id, m.role, m.content, m.sequence_number, m.cumulative_hash, m.created_at, m.upstream_status_code, m.upstream_error, m.parent_message_id
+		SELECT m.id, m.conversation_id, m.branch_id, m.role, m.content, m.model, m.sequence_number, m.cumulative_hash, m.created_at, m.upstream_status_code, m.upstream_error, m.parent_message_id
 		FROM messages m
 		JOIN branch_path bp ON m.branch_id = bp.id
 		WHERE (bp.level = 0) 
@@ -230,8 +230,12 @@ func (s *PostgresStorage) GetBranchHistory(ctx context.Context, branchID string)
 		var errorText sql.NullString
 		var parentMsgIDVal sql.NullString
 		var cumulativeHash string
-		if err := rows.Scan(&m.ID, &m.ConversationID, &m.BranchID, &m.Role, &m.Content, &m.SequenceNumber, &cumulativeHash, &m.CreatedAt, &statusCode, &errorText, &parentMsgIDVal); err != nil {
+		var modelVal sql.NullString
+		if err := rows.Scan(&m.ID, &m.ConversationID, &m.BranchID, &m.Role, &m.Content, &modelVal, &m.SequenceNumber, &cumulativeHash, &m.CreatedAt, &statusCode, &errorText, &parentMsgIDVal); err != nil {
 			return nil, err
+		}
+		if modelVal.Valid {
+			m.Model = modelVal.String
 		}
 		if statusCode.Valid {
 			m.UpstreamStatusCode = int(statusCode.Int32)

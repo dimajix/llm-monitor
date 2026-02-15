@@ -7,7 +7,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func saveToStorage(ctx context.Context, s storage.Storage, name string, model string, history []storage.SimpleMessage, assistantMsg storage.SimpleMessage, statusCode int) {
+func saveToStorage(ctx context.Context, s storage.Storage, name string, history []storage.SimpleMessage, assistantMsg storage.SimpleMessage, statusCode int) {
 	// 2. Try to find the deepest matching message ID
 	var currentParentID string
 	var currentBranchID string
@@ -34,6 +34,12 @@ func saveToStorage(ctx context.Context, s storage.Storage, name string, model st
 	// Create new conversation if no message is found
 	if currentParentID == "" {
 		// New conversation
+		model := ""
+		if len(history) > 0 {
+			model = history[0].Model
+		} else if assistantMsg.Model != "" {
+			model = assistantMsg.Model
+		}
 		_, branch, err := s.CreateConversation(ctx, map[string]any{"model": model})
 		if err != nil {
 			logrus.WithError(err).Warnf("[%s] Could not create conversation in storage", name)

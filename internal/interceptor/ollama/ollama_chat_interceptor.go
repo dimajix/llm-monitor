@@ -151,14 +151,15 @@ func (oi *ChatInterceptor) OnComplete(state interceptor.State) {
 
 		history := make([]storage.SimpleMessage, len(ollamaState.request.Messages))
 		for i, m := range ollamaState.request.Messages {
-			history[i] = storage.SimpleMessage{Role: m.Role, Content: m.Content}
+			history[i] = storage.SimpleMessage{Role: m.Role, Content: m.Content, Model: ollamaState.request.Model}
 		}
 		assistantMsg := storage.SimpleMessage{
 			Role:    ollamaState.response.Message.Role,
 			Content: ollamaState.response.Message.Content,
+			Model:   ollamaState.response.Model,
 		}
 
-		saveToStorage(ctx, oi.Storage, oi.Name, ollamaState.response.Model, history, assistantMsg, ollamaState.statusCode)
+		saveToStorage(ctx, oi.Storage, oi.Name, history, assistantMsg, ollamaState.statusCode)
 	}
 }
 
@@ -173,13 +174,14 @@ func (oi *ChatInterceptor) OnError(state interceptor.State, err error) {
 
 		history := make([]storage.SimpleMessage, len(ollamaState.request.Messages))
 		for i, m := range ollamaState.request.Messages {
-			history[i] = storage.SimpleMessage{Role: m.Role, Content: m.Content}
+			history[i] = storage.SimpleMessage{Role: m.Role, Content: m.Content, Model: ollamaState.request.Model}
 		}
 		assistantMsg := storage.SimpleMessage{
 			Role:    ollamaState.response.Message.Role,
 			Content: ollamaState.response.Message.Content,
+			Model:   ollamaState.response.Model,
 		}
 
-		saveToStorage(ctx, oi.Storage, oi.Name, ollamaState.response.Model, history, assistantMsg, ollamaState.statusCode)
+		saveToStorage(ctx, oi.Storage, oi.Name, history, assistantMsg, ollamaState.statusCode)
 	}
 }
