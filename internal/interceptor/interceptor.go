@@ -38,30 +38,44 @@ type Interceptor interface {
 
 // Manager InterceptorManager manages all interceptors
 type Manager struct {
-	interceptors map[string]Interceptor
+	interceptors map[string]map[string]Interceptor
 	mu           sync.RWMutex
 }
 
 // NewInterceptorManager creates a new interceptor manager
 func NewInterceptorManager() *Manager {
 	return &Manager{
-		interceptors: make(map[string]Interceptor),
+		interceptors: make(map[string]map[string]Interceptor),
 	}
 }
 
-// RegisterInterceptor registers an interceptor for a specific endpoint
-func (im *Manager) RegisterInterceptor(endpoint string, interceptor Interceptor) {
+// RegisterInterceptor registers an interceptor for a specific endpoint and method
+func (im *Manager) RegisterInterceptor(endpoint string, method string, interceptor Interceptor) {
 	im.mu.Lock()
 	defer im.mu.Unlock()
-	im.interceptors[endpoint] = interceptor
+	if _, exists := im.interceptors[endpoint]; !exists {
+		im.interceptors[endpoint] = make(map[string]Interceptor)
+	}
+	im.interceptors[endpoint][method] = interceptor
 }
 
-// GetInterceptor retrieves an interceptor for an endpoint
-func (im *Manager) GetInterceptor(endpoint string) Interceptor {
+// GetInterceptor retrieves an interceptor for an endpoint and method
+func (im *Manager) GetInterceptor(endpoint string, method string) Interceptor {
 	im.mu.RLock()
 	defer im.mu.RUnlock()
-	interceptor, exists := im.interceptors[endpoint]
-	if exists {
+
+	methods, exists := im.interceptors[endpoint]
+	if !exists {
+		return nil
+	}
+
+	// Try exact method match
+	if interceptor, exists := methods[method]; exists {
+		return interceptor
+	}
+
+	// Try wildcard method match
+	if interceptor, exists := methods["*"]; exists {
 		return interceptor
 	}
 

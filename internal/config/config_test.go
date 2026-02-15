@@ -134,3 +134,44 @@ storage:
 		t.Errorf("Expected Storage Timeout 10s, got %s", cfg.Storage.Timeout)
 	}
 }
+
+func TestLoadConfig_Intercepts(t *testing.T) {
+	content := `
+intercepts:
+  - endpoint: "/api/chat"
+    method: "POST"
+    interceptor: "OllamaChatInterceptor"
+  - endpoint: "/api/generate"
+    method: "*"
+    interceptor: "OllamaGenerateInterceptor"
+`
+	tmpfile, err := os.CreateTemp("", "config_intercepts_*.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.Write([]byte(content)); err != nil {
+		t.Fatal(err)
+	}
+	if err := tmpfile.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadConfig(tmpfile.Name())
+	if err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	if len(cfg.Intercepts) != 2 {
+		t.Fatalf("Expected 2 intercepts, got %d", len(cfg.Intercepts))
+	}
+
+	if cfg.Intercepts[0].Endpoint != "/api/chat" || cfg.Intercepts[0].Method != "POST" {
+		t.Errorf("Unexpected intercept 0: %+v", cfg.Intercepts[0])
+	}
+
+	if cfg.Intercepts[1].Endpoint != "/api/generate" || cfg.Intercepts[1].Method != "*" {
+		t.Errorf("Unexpected intercept 1: %+v", cfg.Intercepts[1])
+	}
+}

@@ -54,10 +54,11 @@ func CreateServer(cfg config.Config) *http.Server {
 		if err != nil {
 			logrus.WithError(err).Fatal("Failed to create interceptor")
 		}
-		proxy.RegisterInterceptor(intercept.Endpoint, interceptorInstance)
+		proxy.RegisterInterceptor(intercept.Endpoint, intercept.Method, interceptorInstance)
 		logrus.WithFields(logrus.Fields{
 			"interceptor": intercept.Interceptor,
 			"endpoint":    intercept.Endpoint,
+			"method":      intercept.Method,
 		}).Info("Registered interceptor")
 	}
 	if len(cfg.Intercepts) == 0 {

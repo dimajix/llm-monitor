@@ -6,14 +6,19 @@ upstream:
   timeout: "30s"
 intercepts:
   - endpoint: "/api/users"
+    method: "*"
     interceptor: "CustomInterceptor"
   - endpoint: "/api/products"
+    method: "*"
     interceptor: "SimpleInterceptor"
   - endpoint: "/api/logs"
+    method: "*"
     interceptor: "LoggingInterceptor"
   - endpoint: "/api/generate"
+    method: "POST"
     interceptor: "OllamaGenerateInterceptor"
   - endpoint: "/api/chat"
+    method: "POST"
     interceptor: "OllamaChatInterceptor"
 
 storage:

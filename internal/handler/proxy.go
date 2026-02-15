@@ -63,9 +63,9 @@ func NewProxyHandler(upstreamURL string, port int, timeout time.Duration) (*Prox
 	}, nil
 }
 
-// RegisterInterceptor registers an interceptor for a specific endpoint
-func (ph *ProxyHandler) RegisterInterceptor(endpoint string, interceptor interceptor.Interceptor) {
-	ph.Manager.RegisterInterceptor(endpoint, interceptor)
+// RegisterInterceptor registers an interceptor for a specific endpoint and method
+func (ph *ProxyHandler) RegisterInterceptor(endpoint string, method string, interceptor interceptor.Interceptor) {
+	ph.Manager.RegisterInterceptor(endpoint, method, interceptor)
 }
 
 // modifyHeaders modifies headers before sending to upstream
@@ -94,8 +94,8 @@ func (ph *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		statusCode:     http.StatusOK,
 	}
 
-	// Get interceptor for this endpoint
-	intcptor := ph.Manager.GetInterceptor(r.URL.Path)
+	// Get interceptor for this endpoint and method
+	intcptor := ph.Manager.GetInterceptor(r.URL.Path, r.Method)
 	var state interceptor.State
 
 	if intcptor != nil {

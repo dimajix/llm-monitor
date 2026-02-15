@@ -26,6 +26,7 @@ type UpstreamConfig struct {
 // Intercept represents an interceptor configuration
 type Intercept struct {
 	Endpoint    string `yaml:"endpoint"`
+	Method      string `yaml:"method"`
 	Interceptor string `yaml:"interceptor"`
 }
 
