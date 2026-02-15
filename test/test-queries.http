@@ -104,7 +104,7 @@ Content-Type: application/json
   "messages": [
     {
       "role": "user",
-      "content": "Explain quantum computing in simple terms in 20 words"
+      "content": "Explain quantum computing in simple terms in 21 words"
     }
   ],
   "stream": true

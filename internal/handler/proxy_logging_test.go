@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/sirupsen/logrus"
 )
@@ -18,7 +19,7 @@ func TestProxyHandler_ServeHTTP_Logging(t *testing.T) {
 	defer upstream.Close()
 
 	// Create ProxyHandler pointing to mock upstream
-	ph, err := NewProxyHandler(upstream.URL, 8080)
+	ph, err := NewProxyHandler(upstream.URL, 8080, 30*time.Second)
 	if err != nil {
 		t.Fatalf("Failed to create proxy handler: %v", err)
 	}

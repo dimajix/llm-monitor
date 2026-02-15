@@ -37,7 +37,7 @@ func createHttpTransport() *http.Transport {
 }
 
 // NewProxyHandler creates a new proxy handler
-func NewProxyHandler(upstreamURL string, port int) (*ProxyHandler, error) {
+func NewProxyHandler(upstreamURL string, port int, timeout time.Duration) (*ProxyHandler, error) {
 	parsedURL, err := url.Parse(upstreamURL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid upstream URL: %v", err)
@@ -49,6 +49,7 @@ func NewProxyHandler(upstreamURL string, port int) (*ProxyHandler, error) {
 	logrus.WithFields(logrus.Fields{
 		"port":     port,
 		"upstream": upstreamURL,
+		"timeout":  timeout,
 	}).Info("Server configuration")
 
 	return &ProxyHandler{
@@ -56,7 +57,7 @@ func NewProxyHandler(upstreamURL string, port int) (*ProxyHandler, error) {
 		Manager:     interceptor.NewInterceptorManager(),
 		Client: &http.Client{
 			Transport: transport,
-			Timeout:   30 * time.Second,
+			Timeout:   timeout,
 		},
 		Port: port,
 	}, nil

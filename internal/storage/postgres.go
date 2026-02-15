@@ -183,31 +183,7 @@ func (s *PostgresStorage) AddMessage(ctx context.Context, parentMessageID string
 	nextSeq := lastSeq + 1
 	newHash := computeHash(lastHash, message.Role, message.Content)
 
-	// Idempotency: check if the message already exists in this conversation
 	var msg Message
-	var statusCode sql.NullInt32
-	var errorText sql.NullString
-	var parentMsgIDVal sql.NullString
-	err = tx.QueryRowContext(ctx,
-		"SELECT id, conversation_id, branch_id, role, content, sequence_number, created_at, upstream_status_code, upstream_error, parent_message_id FROM messages WHERE conversation_id = (SELECT conversation_id FROM branches WHERE id = $1) AND cumulative_hash = $2",
-		branchID, newHash,
-	).Scan(&msg.ID, &msg.ConversationID, &msg.BranchID, &msg.Role, &msg.Content, &msg.SequenceNumber, &msg.CreatedAt, &statusCode, &errorText, &parentMsgIDVal)
-
-	if err == nil {
-		if statusCode.Valid {
-			msg.UpstreamStatusCode = int(statusCode.Int32)
-		}
-		if errorText.Valid {
-			msg.UpstreamError = &errorText.String
-		}
-		if parentMsgIDVal.Valid {
-			msg.ParentMessageID = &parentMsgIDVal.String
-		}
-		return &msg, nil
-	} else if err != sql.ErrNoRows {
-		return nil, err
-	}
-
 	err = tx.QueryRowContext(ctx,
 		"INSERT INTO messages (conversation_id, branch_id, role, content, sequence_number, cumulative_hash, upstream_status_code, upstream_error, parent_message_id) VALUES ((SELECT conversation_id FROM branches WHERE id = $1), $1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, conversation_id, branch_id, role, content, sequence_number, created_at, upstream_status_code, upstream_error, parent_message_id",
 		branchID, message.Role, message.Content, nextSeq, newHash, message.UpstreamStatusCode, message.UpstreamError, optional(parentMessageID),
@@ -286,7 +262,7 @@ func (s *PostgresStorage) FindMessageByHistory(ctx context.Context, history []st
 	for i := len(hashes) - 1; i >= 0; i-- {
 		var mID string
 		err := s.db.QueryRowContext(ctx,
-			"SELECT id FROM messages WHERE cumulative_hash = $1",
+			"SELECT id FROM messages WHERE cumulative_hash = $1 ORDER BY created_at DESC LIMIT 1",
 			hashes[i],
 		).Scan(&mID)
 

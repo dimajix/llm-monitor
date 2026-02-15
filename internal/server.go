@@ -14,6 +14,25 @@ import (
 )
 
 func CreateServer(cfg config.Config) *http.Server {
+	// Parse timeouts
+	upstreamTimeout := 30 * time.Second
+	if cfg.Upstream.Timeout != "" {
+		if d, err := time.ParseDuration(cfg.Upstream.Timeout); err == nil {
+			upstreamTimeout = d
+		} else {
+			logrus.WithError(err).Warnf("Failed to parse upstream timeout '%s', using default 30s", cfg.Upstream.Timeout)
+		}
+	}
+
+	storageTimeout := 30 * time.Second
+	if cfg.Storage.Timeout != "" {
+		if d, err := time.ParseDuration(cfg.Storage.Timeout); err == nil {
+			storageTimeout = d
+		} else {
+			logrus.WithError(err).Warnf("Failed to parse storage timeout '%s', using default 30s", cfg.Storage.Timeout)
+		}
+	}
+
 	// Initialize storage
 	store, err := CreateStorage(cfg.Storage)
 	if err != nil {
@@ -24,14 +43,14 @@ func CreateServer(cfg config.Config) *http.Server {
 	}
 
 	// Create proxy handler
-	proxy, err := handler.NewProxyHandler(cfg.Upstream, cfg.Port)
+	proxy, err := handler.NewProxyHandler(cfg.Upstream.URL, cfg.Port, upstreamTimeout)
 	if err != nil {
 		logrus.WithError(err).Fatal("Failed to create proxy handler")
 	}
 
 	// Register interceptors based on configuration
 	for _, intercept := range cfg.Intercepts {
-		interceptorInstance, err := CreateInterceptor(intercept.Interceptor, store)
+		interceptorInstance, err := CreateInterceptor(intercept.Interceptor, store, storageTimeout)
 		if err != nil {
 			logrus.WithError(err).Fatal("Failed to create interceptor")
 		}
@@ -55,7 +74,7 @@ func CreateServer(cfg config.Config) *http.Server {
 }
 
 // CreateInterceptor creates an interceptor instance based on name
-func CreateInterceptor(name string, store storage.Storage) (interceptor.Interceptor, error) {
+func CreateInterceptor(name string, store storage.Storage, timeout time.Duration) (interceptor.Interceptor, error) {
 	switch name {
 	case "CustomInterceptor":
 		return &interceptor.CustomInterceptor{Name: name}, nil
@@ -64,9 +83,9 @@ func CreateInterceptor(name string, store storage.Storage) (interceptor.Intercep
 	case "LoggingInterceptor":
 		return &interceptor.LoggingInterceptor{Name: name}, nil
 	case "OllamaChatInterceptor":
-		return &ollama.ChatInterceptor{Name: name, Storage: store, Timeout: 30 * time.Second}, nil
+		return &ollama.ChatInterceptor{Name: name, Storage: store, Timeout: timeout}, nil
 	case "OllamaGenerateInterceptor":
-		return &ollama.GenerateInterceptor{Name: name, Storage: store, Timeout: 30 * time.Second}, nil
+		return &ollama.GenerateInterceptor{Name: name, Storage: store, Timeout: timeout}, nil
 	default:
 		return nil, fmt.Errorf("invalid interceptor type: %s", name)
 	}

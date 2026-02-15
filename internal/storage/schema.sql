@@ -35,8 +35,7 @@ CREATE TABLE messages (
     upstream_error TEXT,
     parent_message_id UUID REFERENCES messages(id),
     
-    UNIQUE (branch_id, sequence_number),
-    UNIQUE (conversation_id, cumulative_hash)
+    UNIQUE (branch_id, sequence_number)
 );
 
 -- Add foreign key constraint to branches for parent_message_id

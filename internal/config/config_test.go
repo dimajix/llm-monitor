@@ -9,7 +9,8 @@ func TestLoadConfig_EnvSubstitution(t *testing.T) {
 	// Create a temporary config file with env vars
 	content := `
 port: ${PORT:-9090}
-upstream: ${UPSTREAM_URL}
+upstream:
+  url: ${UPSTREAM_URL}
 storage:
   type: "postgres"
   postgres:
@@ -52,8 +53,8 @@ storage:
 	if cfg.Port != 9090 {
 		t.Errorf("Expected Port 9090, got %d", cfg.Port)
 	}
-	if cfg.Upstream != "http://ollama:11434" {
-		t.Errorf("Expected Upstream http://ollama:11434, got %s", cfg.Upstream)
+	if cfg.Upstream.URL != "http://ollama:11434" {
+		t.Errorf("Expected Upstream http://ollama:11434, got %s", cfg.Upstream.URL)
 	}
 	expectedDSN := "postgres://admin:secret@db.example.com:5432/mydb?sslmode=disable"
 	if cfg.Storage.Postgres.DSN != expectedDSN {
@@ -65,7 +66,8 @@ func TestLoadConfig_EnvDefaults(t *testing.T) {
 	// Create a temporary config file with env vars and defaults
 	content := `
 port: ${PORT:-8081}
-upstream: ${UPSTREAM_URL:-http://localhost:11434}
+upstream:
+  url: ${UPSTREAM_URL:-http://localhost:11434}
 `
 	tmpfile, err := os.CreateTemp("", "config_defaults_*.yaml")
 	if err != nil {
@@ -92,7 +94,43 @@ upstream: ${UPSTREAM_URL:-http://localhost:11434}
 	if cfg.Port != 8081 {
 		t.Errorf("Expected Port 8081 (default), got %d", cfg.Port)
 	}
-	if cfg.Upstream != "http://localhost:11434" {
-		t.Errorf("Expected Upstream http://localhost:11434 (default), got %s", cfg.Upstream)
+	if cfg.Upstream.URL != "http://localhost:11434" {
+		t.Errorf("Expected Upstream http://localhost:11434 (default), got %s", cfg.Upstream.URL)
+	}
+}
+
+func TestLoadConfig_Timeout(t *testing.T) {
+	content := `
+port: 8080
+upstream:
+  url: http://localhost:11434
+  timeout: 60s
+storage:
+  type: postgres
+  timeout: 10s
+`
+	tmpfile, err := os.CreateTemp("", "config_timeout_*.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.Write([]byte(content)); err != nil {
+		t.Fatal(err)
+	}
+	if err := tmpfile.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadConfig(tmpfile.Name())
+	if err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	if cfg.Upstream.Timeout != "60s" {
+		t.Errorf("Expected Upstream Timeout 60s, got %s", cfg.Upstream.Timeout)
+	}
+	if cfg.Storage.Timeout != "10s" {
+		t.Errorf("Expected Storage Timeout 10s, got %s", cfg.Storage.Timeout)
 	}
 }

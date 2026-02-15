@@ -108,13 +108,13 @@ func TestPostgresStorage_Branching(t *testing.T) {
 		}
 	}
 
-	// 7. Test Idempotency
+	// 7. Test Idempotency (now removed, should create a new message)
 	m4_repeat, err := storage.AddMessage(ctx, m2.ID, &Message{Role: "user", Content: "What is the weather?"})
 	if err != nil {
 		t.Fatalf("Failed to add message 4 repeat: %v", err)
 	}
-	if m4_repeat.ID != m4.ID {
-		t.Errorf("Idempotency failed: expected message ID %s, got %s", m4.ID, m4_repeat.ID)
+	if m4_repeat.ID == m4.ID {
+		t.Errorf("Idempotency should be removed: expected different message ID, got same %s", m4.ID)
 	}
 
 	// 8. Test FindMessageByHistory

@@ -10,11 +10,17 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-	Upstream   string      `yaml:"upstream"`
-	Port       int         `yaml:"port"`
-	Intercepts []Intercept `yaml:"intercepts"`
-	Logging    Logging     `yaml:"logging,omitempty"`
-	Storage    Storage     `yaml:"storage,omitempty"`
+	Upstream   UpstreamConfig `yaml:"upstream"`
+	Port       int            `yaml:"port"`
+	Intercepts []Intercept    `yaml:"intercepts"`
+	Logging    Logging        `yaml:"logging,omitempty"`
+	Storage    Storage        `yaml:"storage,omitempty"`
+}
+
+// UpstreamConfig represents the upstream configuration
+type UpstreamConfig struct {
+	URL     string `yaml:"url"`
+	Timeout string `yaml:"timeout,omitempty"`
 }
 
 // Intercept represents an interceptor configuration
@@ -26,6 +32,7 @@ type Intercept struct {
 // Storage represents the storage configuration
 type Storage struct {
 	Type     string          `yaml:"type"`
+	Timeout  string          `yaml:"timeout,omitempty"`
 	Postgres *PostgresConfig `yaml:"postgres,omitempty"`
 }
 
