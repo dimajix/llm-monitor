@@ -116,4 +116,31 @@ func TestPostgresStorage_Branching(t *testing.T) {
 	if m4_repeat.ID != m4.ID {
 		t.Errorf("Idempotency failed: expected message ID %s, got %s", m4.ID, m4_repeat.ID)
 	}
+
+	// 8. Test FindMessageByHistory
+	history := []struct{ Role, Content string }{
+		{"user", "Hello"},
+		{"assistant", "Hi there!"},
+		{"user", "What is the weather?"},
+	}
+	foundID, err := storage.FindMessageByHistory(ctx, history)
+	if err != nil {
+		t.Fatalf("FindMessageByHistory failed: %v", err)
+	}
+	if foundID != m4.ID {
+		t.Errorf("FindMessageByHistory: expected %s, got %s", m4.ID, foundID)
+	}
+
+	// Test partial history
+	historyPartial := []struct{ Role, Content string }{
+		{"user", "Hello"},
+		{"assistant", "Hi there!"},
+	}
+	foundIDPartial, err := storage.FindMessageByHistory(ctx, historyPartial)
+	if err != nil {
+		t.Fatalf("FindMessageByHistory failed: %v", err)
+	}
+	if foundIDPartial != m2.ID {
+		t.Errorf("FindMessageByHistory (partial): expected %s, got %s", m2.ID, foundIDPartial)
+	}
 }
