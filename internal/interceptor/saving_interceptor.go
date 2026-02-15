@@ -1,22 +1,35 @@
-package ollama
+package interceptor
 
 import (
 	"context"
 	"llm-monitor/internal/storage"
+	"time"
 
 	"github.com/sirupsen/logrus"
 )
 
-func saveToStorage(ctx context.Context, s storage.Storage, name string, history []storage.SimpleMessage, assistantMsg storage.SimpleMessage, statusCode int) {
+// SavingInterceptor is a base struct for interceptors that save messages to storage
+type SavingInterceptor struct {
+	Name    string
+	Storage storage.Storage
+	Timeout time.Duration
+}
+
+// SaveToStorage saves the conversation history and assistant message to storage
+func (si *SavingInterceptor) SaveToStorage(ctx context.Context, history []storage.SimpleMessage, assistantMsg storage.SimpleMessage, statusCode int) {
+	if si.Storage == nil {
+		return
+	}
+
 	// 2. Try to find the deepest matching message ID
 	var currentParentID string
 	var currentBranchID string
 
 	var curHistory = history
 	for len(curHistory) > 0 {
-		pid, err := s.FindMessageByHistory(ctx, curHistory)
+		pid, err := si.Storage.FindMessageByHistory(ctx, curHistory)
 		if err != nil {
-			logrus.WithError(err).Warnf("[%s] Could not find message by history", name)
+			logrus.WithError(err).Warnf("[%s] Could not find message by history", si.Name)
 			return
 		}
 		if pid != "" {
@@ -40,9 +53,9 @@ func saveToStorage(ctx context.Context, s storage.Storage, name string, history 
 		} else if assistantMsg.Model != "" {
 			model = assistantMsg.Model
 		}
-		_, branch, err := s.CreateConversation(ctx, map[string]any{"model": model})
+		_, branch, err := si.Storage.CreateConversation(ctx, map[string]any{"model": model})
 		if err != nil {
-			logrus.WithError(err).Warnf("[%s] Could not create conversation in storage", name)
+			logrus.WithError(err).Warnf("[%s] Could not create conversation in storage", si.Name)
 			return
 		}
 		currentBranchID = branch.ID
@@ -50,12 +63,12 @@ func saveToStorage(ctx context.Context, s storage.Storage, name string, history 
 
 	// 3. Add missing messages from history
 	for i, m := range history[len(curHistory):] {
-		msg, err := s.AddMessage(ctx, currentParentID, &storage.Message{
+		msg, err := si.Storage.AddMessage(ctx, currentParentID, &storage.Message{
 			SimpleMessage: m,
 			BranchID:      currentBranchID,
 		})
 		if err != nil {
-			logrus.WithError(err).Warnf("[%s] Could not add history message %d to storage", name, i)
+			logrus.WithError(err).Warnf("[%s] Could not add history message %d to storage", si.Name, i)
 			return
 		}
 		currentParentID = msg.ID
@@ -64,12 +77,12 @@ func saveToStorage(ctx context.Context, s storage.Storage, name string, history 
 
 	// 4. Add the assistant response
 	if assistantMsg.Content != "" || statusCode != 0 {
-		_, err := s.AddMessage(ctx, currentParentID, &storage.Message{
+		_, err := si.Storage.AddMessage(ctx, currentParentID, &storage.Message{
 			SimpleMessage:      assistantMsg,
 			UpstreamStatusCode: statusCode,
 		})
 		if err != nil {
-			logrus.WithError(err).Warnf("[%s] Could not add assistant message to storage", name)
+			logrus.WithError(err).Warnf("[%s] Could not add assistant message to storage", si.Name)
 		}
 	}
 }

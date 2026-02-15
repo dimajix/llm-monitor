@@ -83,9 +83,21 @@ func CreateInterceptor(name string, store storage.Storage, timeout time.Duration
 	case "LoggingInterceptor":
 		return &interceptor.LoggingInterceptor{Name: name}, nil
 	case "OllamaChatInterceptor":
-		return &ollama.ChatInterceptor{Name: name, Storage: store, Timeout: timeout}, nil
+		return &ollama.ChatInterceptor{
+			SavingInterceptor: interceptor.SavingInterceptor{
+				Name:    name,
+				Storage: store,
+				Timeout: timeout,
+			},
+		}, nil
 	case "OllamaGenerateInterceptor":
-		return &ollama.GenerateInterceptor{Name: name, Storage: store, Timeout: timeout}, nil
+		return &ollama.GenerateInterceptor{
+			SavingInterceptor: interceptor.SavingInterceptor{
+				Name:    name,
+				Storage: store,
+				Timeout: timeout,
+			},
+		}, nil
 	default:
 		return nil, fmt.Errorf("invalid interceptor type: %s", name)
 	}

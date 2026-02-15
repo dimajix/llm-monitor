@@ -15,9 +15,7 @@ import (
 
 // ChatInterceptor intercepts chat messages between client and Ollama server
 type ChatInterceptor struct {
-	Name    string
-	Storage storage.Storage
-	Timeout time.Duration
+	interceptor.SavingInterceptor
 }
 
 // chatMessage represents a chat message
@@ -159,7 +157,7 @@ func (oi *ChatInterceptor) OnComplete(state interceptor.State) {
 			Model:   ollamaState.response.Model,
 		}
 
-		saveToStorage(ctx, oi.Storage, oi.Name, history, assistantMsg, ollamaState.statusCode)
+		oi.SaveToStorage(ctx, history, assistantMsg, ollamaState.statusCode)
 	}
 }
 
@@ -182,6 +180,6 @@ func (oi *ChatInterceptor) OnError(state interceptor.State, err error) {
 			Model:   ollamaState.response.Model,
 		}
 
-		saveToStorage(ctx, oi.Storage, oi.Name, history, assistantMsg, ollamaState.statusCode)
+		oi.SaveToStorage(ctx, history, assistantMsg, ollamaState.statusCode)
 	}
 }

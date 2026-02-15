@@ -15,9 +15,7 @@ import (
 
 // GenerateInterceptor records traffic between a Client and an Ollama server
 type GenerateInterceptor struct {
-	Name    string
-	Storage storage.Storage
-	Timeout time.Duration
+	interceptor.SavingInterceptor
 }
 
 // generateRequest represents the structure of a request to the /api/generate endpoint
@@ -153,7 +151,7 @@ func (oi *GenerateInterceptor) OnComplete(state interceptor.State) {
 			Model:   ollamaState.response.Model,
 		}
 
-		saveToStorage(ctx, oi.Storage, oi.Name, history, assistantMsg, ollamaState.statusCode)
+		oi.SaveToStorage(ctx, history, assistantMsg, ollamaState.statusCode)
 	}
 }
 
@@ -175,6 +173,6 @@ func (oi *GenerateInterceptor) OnError(state interceptor.State, err error) {
 			Model:   ollamaState.response.Model,
 		}
 
-		saveToStorage(ctx, oi.Storage, oi.Name, history, assistantMsg, ollamaState.statusCode)
+		oi.SaveToStorage(ctx, history, assistantMsg, ollamaState.statusCode)
 	}
 }
