@@ -110,6 +110,28 @@ Content-Type: application/json
   "stream": true
 }
 
+###
+POST http://localhost:8080/api/chat
+Content-Type: application/json
+
+{
+  "model": "qwen3-coder:30b",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Explain quantum computing in simple terms in 21 words"
+    },
+    {
+      "role": "assistant",
+      "content": "That is a good question"
+    },
+    {
+      "role": "user",
+      "content": "Explain it to me!"
+    }
+  ],
+  "stream": true
+}
 
 ###
 GET http://localhost:8080/api/tags

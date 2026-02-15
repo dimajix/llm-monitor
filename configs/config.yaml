@@ -18,6 +18,6 @@ intercepts:
 
 storage:
   type: "postgres"
-  timeout: "5s"
+  timeout: "500s"
   postgres:
     dsn: "postgres://${DB_USER:-llm_user}:${DB_PASSWORD:-llm_pass}@${DB_HOST:-localhost}:${DB_PORT:-5432}/${DB_NAME:-llm_monitor}?sslmode=disable"

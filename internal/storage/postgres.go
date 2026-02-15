@@ -256,28 +256,19 @@ func (s *PostgresStorage) FindMessageByHistory(ctx context.Context, history []Si
 		return "", nil
 	}
 
-	hashes := make([]string, len(history))
-	currentHash := ""
-	for i, m := range history {
-		currentHash = computeHash(currentHash, m.Role, m.Content)
-		hashes[i] = currentHash
+	currentHash := computeHistoryHash(history)
+	var mID string
+	err := s.db.QueryRowContext(ctx,
+		"SELECT id FROM messages WHERE cumulative_hash = $1 ORDER BY created_at DESC LIMIT 1",
+		currentHash,
+	).Scan(&mID)
+
+	if err == nil {
+		return mID, nil
 	}
-
-	for i := len(hashes) - 1; i >= 0; i-- {
-		var mID string
-		err := s.db.QueryRowContext(ctx,
-			"SELECT id FROM messages WHERE cumulative_hash = $1 ORDER BY created_at DESC LIMIT 1",
-			hashes[i],
-		).Scan(&mID)
-
-		if err == nil {
-			return mID, nil
-		}
-		if err != sql.ErrNoRows {
-			return "", err
-		}
+	if err != sql.ErrNoRows {
+		return "", err
 	}
-
 	return "", nil
 }
 
@@ -286,6 +277,14 @@ func optional(s string) *string {
 		return nil
 	}
 	return &s
+}
+
+func computeHistoryHash(history []SimpleMessage) string {
+	currentHash := ""
+	for _, m := range history {
+		currentHash = computeHash(currentHash, m.Role, m.Content)
+	}
+	return currentHash
 }
 
 func computeHash(prevHash, role, content string) string {
