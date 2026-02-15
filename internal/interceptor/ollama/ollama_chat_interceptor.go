@@ -143,29 +143,22 @@ func (oi *ChatInterceptor) OnComplete(state interceptor.State) {
 	}
 	logrus.Printf("[%s] Response [%s]: %s", oi.Name, ollamaState.response.Message.Role, ollamaState.response.Message.Content)
 
-	if oi.Storage != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), oi.Timeout)
-		defer cancel()
-
-		history := make([]storage.SimpleMessage, len(ollamaState.request.Messages))
-		for i, m := range ollamaState.request.Messages {
-			history[i] = storage.SimpleMessage{Role: m.Role, Content: m.Content, Model: ollamaState.request.Model}
-		}
-		assistantMsg := storage.SimpleMessage{
-			Role:    ollamaState.response.Message.Role,
-			Content: ollamaState.response.Message.Content,
-			Model:   ollamaState.response.Model,
-		}
-
-		oi.SaveToStorage(ctx, history, assistantMsg, ollamaState.statusCode)
-	}
+	oi.saveLog(ollamaState)
 }
 
 // OnError handles errors during request processing
 func (oi *ChatInterceptor) OnError(state interceptor.State, err error) {
 	ollamaState, _ := state.(*chatState)
 	logrus.WithError(err).Warningf("[%s] Error occurred", oi.Name)
+	for _, m := range ollamaState.request.Messages {
+		logrus.Printf("[%s] Request [%s]: %s", oi.Name, m.Role, m.Content)
+	}
+	logrus.Printf("[%s] Response [%s]: %s", oi.Name, ollamaState.response.Message.Role, ollamaState.response.Message.Content)
 
+	oi.saveLog(ollamaState)
+}
+
+func (oi *ChatInterceptor) saveLog(ollamaState *chatState) {
 	if oi.Storage != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), oi.Timeout)
 		defer cancel()

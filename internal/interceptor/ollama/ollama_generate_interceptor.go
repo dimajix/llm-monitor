@@ -138,28 +138,20 @@ func (oi *GenerateInterceptor) OnComplete(state interceptor.State) {
 	logrus.Printf("[%s] Prompt: %s", oi.Name, ollamaState.request.Prompt)
 	logrus.Printf("[%s] Response: %s", oi.Name, ollamaState.response.Response)
 
-	if oi.Storage != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), oi.Timeout)
-		defer cancel()
-
-		history := []storage.SimpleMessage{
-			{Role: "user", Content: ollamaState.request.Prompt, Model: ollamaState.request.Model},
-		}
-		assistantMsg := storage.SimpleMessage{
-			Role:    "assistant",
-			Content: ollamaState.response.Response,
-			Model:   ollamaState.response.Model,
-		}
-
-		oi.SaveToStorage(ctx, history, assistantMsg, ollamaState.statusCode)
-	}
+	oi.saveLog(ollamaState)
 }
 
 // OnError is called when an error occurs
 func (oi *GenerateInterceptor) OnError(state interceptor.State, err error) {
 	ollamaState, _ := state.(*generateState)
 	logrus.WithError(err).Warningf("[%s] Error occurred: %v", oi.Name, err)
+	logrus.Printf("[%s] Prompt: %s", oi.Name, ollamaState.request.Prompt)
+	logrus.Printf("[%s] Response: %s", oi.Name, ollamaState.response.Response)
 
+	oi.saveLog(ollamaState)
+}
+
+func (oi *GenerateInterceptor) saveLog(ollamaState *generateState) {
 	if oi.Storage != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), oi.Timeout)
 		defer cancel()
