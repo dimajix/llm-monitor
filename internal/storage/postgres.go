@@ -272,7 +272,7 @@ func (s *PostgresStorage) FindMessageByHistory(ctx context.Context, history []Si
 	return "", nil
 }
 
-func (s *PostgresStorage) ListConversations(ctx context.Context) ([]ConversationOverview, error) {
+func (s *PostgresStorage) ListConversations(ctx context.Context, p Pagination) ([]ConversationOverview, error) {
 	query := `
 		SELECT c.id, c.created_at, c.metadata,
 		       m.id, m.conversation_id, m.branch_id, m.role, m.content, m.model, m.sequence_number, m.created_at, m.upstream_status_code, m.upstream_error, m.parent_message_id
@@ -283,8 +283,9 @@ func (s *PostgresStorage) ListConversations(ctx context.Context) ([]Conversation
 			ORDER BY m.sequence_number ASC LIMIT 1
 		) m ON true
 		ORDER BY c.created_at DESC
+		LIMIT $1 OFFSET $2
 	`
-	rows, err := s.db.QueryContext(ctx, query)
+	rows, err := s.db.QueryContext(ctx, query, p.Limit, p.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -340,14 +341,15 @@ func (s *PostgresStorage) ListConversations(ctx context.Context) ([]Conversation
 	return overviews, nil
 }
 
-func (s *PostgresStorage) SearchMessages(ctx context.Context, query string) ([]Message, error) {
+func (s *PostgresStorage) SearchMessages(ctx context.Context, query string, p Pagination) ([]Message, error) {
 	sqlQuery := `
 		SELECT id, conversation_id, branch_id, role, content, model, sequence_number, created_at, upstream_status_code, upstream_error, parent_message_id
 		FROM messages
 		WHERE content ILIKE $1
 		ORDER BY created_at DESC
+		LIMIT $2 OFFSET $3
 	`
-	rows, err := s.db.QueryContext(ctx, sqlQuery, "%"+query+"%")
+	rows, err := s.db.QueryContext(ctx, sqlQuery, "%"+query+"%", p.Limit, p.Offset)
 	if err != nil {
 		return nil, err
 	}

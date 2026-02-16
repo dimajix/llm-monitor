@@ -1,9 +1,10 @@
 services:
-  app:
+  proxy:
+    image: dimajix/llm-monitor
     build: .
     ports:
       - "8080:8080"
-    environment:
+    environment: &env
       - DB_USER=llm_user
       - DB_PASSWORD=llm_pass
       - DB_HOST=db
@@ -11,6 +12,16 @@ services:
       - DB_NAME=llm_monitor
       - UPSTREAM_URL=http://strix.ffm.dimajix.net:11434  # Example upstream
       #- UPSTREAM_URL=http://ollama:11434  # Example upstream
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    image: dimajix/llm-monitor
+    command: ["./llm-monitor-api", "-c", "/app/config/config.yaml"]
+    ports:
+      - "8081:8081"
+    environment: *env
     depends_on:
       db:
         condition: service_healthy

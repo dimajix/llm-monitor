@@ -42,6 +42,12 @@ type Message struct {
 	UpstreamError      *string   `json:"upstream_error,omitzero"`
 }
 
+// Pagination defines parameters for paginated queries.
+type Pagination struct {
+	Limit  int
+	Offset int
+}
+
 // Storage defines the interface for persisting and retrieving conversation data.
 type Storage interface {
 	// CreateConversation creates a new conversation and its initial branch.
@@ -63,10 +69,10 @@ type Storage interface {
 	FindMessageByHistory(ctx context.Context, history []SimpleMessage) (messageID string, err error)
 
 	// ListConversations returns a list of all conversations, including their first message.
-	ListConversations(ctx context.Context) ([]ConversationOverview, error)
+	ListConversations(ctx context.Context, p Pagination) ([]ConversationOverview, error)
 
 	// SearchMessages searches for messages containing the given text snippet.
-	SearchMessages(ctx context.Context, query string) ([]Message, error)
+	SearchMessages(ctx context.Context, query string, p Pagination) ([]Message, error)
 
 	// GetConversationMessages retrieves all messages belonging to a conversation.
 	GetConversationMessages(ctx context.Context, conversationID string) ([]Message, error)

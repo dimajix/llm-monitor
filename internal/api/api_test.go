@@ -11,16 +11,16 @@ import (
 
 type mockStorage struct {
 	storage.Storage
-	listConversationsFunc func(ctx context.Context) ([]storage.ConversationOverview, error)
+	listConversationsFunc func(ctx context.Context, p storage.Pagination) ([]storage.ConversationOverview, error)
 }
 
-func (m *mockStorage) ListConversations(ctx context.Context) ([]storage.ConversationOverview, error) {
-	return m.listConversationsFunc(ctx)
+func (m *mockStorage) ListConversations(ctx context.Context, p storage.Pagination) ([]storage.ConversationOverview, error) {
+	return m.listConversationsFunc(ctx, p)
 }
 
 func TestAPIHandler_ListConversations(t *testing.T) {
 	mock := &mockStorage{
-		listConversationsFunc: func(ctx context.Context) ([]storage.ConversationOverview, error) {
+		listConversationsFunc: func(ctx context.Context, p storage.Pagination) ([]storage.ConversationOverview, error) {
 			return []storage.ConversationOverview{
 				{
 					Conversation: storage.Conversation{ID: "conv1"},
@@ -31,7 +31,7 @@ func TestAPIHandler_ListConversations(t *testing.T) {
 	}
 
 	h := NewAPIHandler(mock)
-	req := httptest.NewRequest("GET", "/conversations", nil)
+	req := httptest.NewRequest("GET", "/api/v1/conversations", nil)
 	w := httptest.NewRecorder()
 
 	h.ServeHTTP(w, req)

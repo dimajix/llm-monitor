@@ -11,7 +11,9 @@ RUN go mod download
 COPY . .
 
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -o llm-monitor cmd/proxy/main.go
+RUN CGO_ENABLED=0 GOOS=linux \
+    go build -o llm-monitor-proxy cmd/proxy/main.go \
+    && go build -o llm-monitor-api cmd/api/main.go
 
 # Final stage
 FROM alpine:latest
@@ -22,7 +24,8 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 WORKDIR /app
 
 # Copy the binary from the builder stage
-COPY --from=builder /app/llm-monitor .
+COPY --from=builder /app/llm-monitor-proxy .
+COPY --from=builder /app/llm-monitor-api .
 COPY --from=builder /app/configs/config.yaml ./config/config.yaml
 
 # Set ownership to the non-privileged user
@@ -35,4 +38,4 @@ USER appuser
 EXPOSE 8080
 
 # Command to run the application
-CMD ["./llm-monitor", "-c", "/app/config/config.yaml"]
+CMD ["./llm-monitor-proxy", "-c", "/app/config/config.yaml"]

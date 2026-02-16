@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"llm-monitor/internal/storage"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -18,15 +19,15 @@ func NewAPIHandler(s storage.Storage) *APIHandler {
 }
 
 func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if strings.HasPrefix(r.URL.Path, "/conversations") {
+	if strings.HasPrefix(r.URL.Path, "/api/v1/conversations") {
 		h.handleConversations(w, r)
 		return
 	}
-	if strings.HasPrefix(r.URL.Path, "/search") {
+	if strings.HasPrefix(r.URL.Path, "/api/v1/search") {
 		h.handleSearch(w, r)
 		return
 	}
-	if strings.HasPrefix(r.URL.Path, "/branches/") {
+	if strings.HasPrefix(r.URL.Path, "/api/v1/branches/") {
 		h.handleBranch(w, r)
 		return
 	}
@@ -36,12 +37,13 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (h *APIHandler) handleConversations(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	path := strings.TrimPrefix(r.URL.Path, "/conversations")
+	path := strings.TrimPrefix(r.URL.Path, "/api/v1/conversations")
 	path = strings.Trim(path, "/")
 
 	if path == "" {
 		// List all conversations
-		overviews, err := h.storage.ListConversations(ctx)
+		p := h.getPagination(r)
+		overviews, err := h.storage.ListConversations(ctx, p)
 		if err != nil {
 			logrus.WithError(err).Error("Failed to list conversations")
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -83,7 +85,7 @@ func (h *APIHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	messages, err := h.storage.SearchMessages(ctx, query)
+	messages, err := h.storage.SearchMessages(ctx, query, h.getPagination(r))
 	if err != nil {
 		logrus.WithError(err).Error("Failed to search messages")
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -133,5 +135,28 @@ func respondJSON(w http.ResponseWriter, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(data); err != nil {
 		logrus.WithError(err).Error("Failed to encode JSON response")
+	}
+}
+
+func (h *APIHandler) getPagination(r *http.Request) storage.Pagination {
+	limitStr := r.URL.Query().Get("limit")
+	offsetStr := r.URL.Query().Get("offset")
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit <= 0 {
+		limit = 100
+	}
+	if limit > 1000 {
+		limit = 1000
+	}
+
+	offset, err := strconv.Atoi(offsetStr)
+	if err != nil || offset < 0 {
+		offset = 0
+	}
+
+	return storage.Pagination{
+		Limit:  limit,
+		Offset: offset,
 	}
 }

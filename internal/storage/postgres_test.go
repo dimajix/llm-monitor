@@ -145,7 +145,7 @@ func TestPostgresStorage_Branching(t *testing.T) {
 	}
 
 	// 9. Test ListConversations
-	overviews, err := storage.ListConversations(ctx)
+	overviews, err := storage.ListConversations(ctx, Pagination{Limit: 1000, Offset: 0})
 	if err != nil {
 		t.Fatalf("ListConversations failed: %v", err)
 	}
@@ -160,7 +160,7 @@ func TestPostgresStorage_Branching(t *testing.T) {
 	}
 
 	// 10. Test SearchMessages
-	searchResults, err := storage.SearchMessages(ctx, "weather")
+	searchResults, err := storage.SearchMessages(ctx, "weather", Pagination{Limit: 1000, Offset: 0})
 	if err != nil {
 		t.Fatalf("SearchMessages failed: %v", err)
 	}
