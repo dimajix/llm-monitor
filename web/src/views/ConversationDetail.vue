@@ -9,7 +9,7 @@
 
       <v-list lines="three">
         <template v-for="m in visibleMessages" :key="m.id">
-          <chat-message :message="m">
+          <chat-message :message="m" expandable>
             <template #append>
               <div class="d-flex align-center">
                 <v-tooltip v-if="(m.child_branch_ids?.length || 0) > 0" text="Switch branch from here">

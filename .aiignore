@@ -10,6 +10,10 @@ llm-monitor
 _coverage.out
 *.cover
 
+# NPM files
+web/node_modules
+web/dist
+
 # IDE
 .idea/
 .vscode/

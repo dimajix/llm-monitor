@@ -15,6 +15,7 @@ coverage.out
 
 # NPM files
 web/node_modules
+web/dist
 
 # Docker files
 Dockerfile

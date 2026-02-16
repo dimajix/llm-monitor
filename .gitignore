@@ -12,6 +12,7 @@ _coverage.out
 
 # NPM files
 web/node_modules
+web/dist
 
 # IDE
 .idea/

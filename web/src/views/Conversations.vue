@@ -18,6 +18,7 @@
               v-if="c.first_message"
               :message="c.first_message"
               clickable
+              expandable
               @click="goDetail(c.id)"
             />
           </template>
@@ -28,6 +29,7 @@
             :key="m.id"
             :message="m"
             clickable
+            expandable
             @click="goMessageDetail(m)"
           />
           <v-list-item v-if="!loading && foundMessages.length === 0">
