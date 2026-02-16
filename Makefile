@@ -8,9 +8,9 @@ build-web:
 	cd web && npm install && npm run build
 
 # Build all Go commands
-# We use 'go build ./cmd/...' to build all binaries in the cmd directory
 build-go:
-	go build -o bin/ ./cmd/...
+	go build -o bin/llm-monitor-proxy cmd/proxy/main.go
+	go build -o bin/llm-monitor-api cmd/api/main.go
 
 # Clean build artifacts
 clean:

@@ -1,6 +1,6 @@
 # LLM Monitor
 
-LLM Monitor is a Go-based proxy server designed to intercept, monitor, and log interactions with Large Language Models (LLMs). It is specifically tailored for [Ollama](https://ollama.com/), but its modular architecture allows for easy extension to other LLM providers.
+LLM Monitor is a Go-based proxy server designed to intercept, monitor, and log interactions with Large Language Models (LLMs). It includes a built-in web interface for viewing and searching conversation history. It is specifically tailored for [Ollama](https://ollama.com/), but its modular architecture allows for easy extension to other LLM providers.
 
 ## Features
 
@@ -8,6 +8,7 @@ LLM Monitor is a Go-based proxy server designed to intercept, monitor, and log i
 - **Request/Response Interception**: Intercept and modify requests and responses.
 - **Streaming Support**: Fully supports streaming responses (`stream: true`) common in LLM APIs.
 - **Persistence**: Logs conversations and messages to a PostgreSQL database.
+- **Web UI**: Modern, built-in web interface to browse, search, and visualize conversation histories (served by the API binary).
 - **Modular Interceptors**:
     - `OllamaChatInterceptor`: Intercepts `/api/chat` requests and logs messages.
     - `OllamaGenerateInterceptor`: Intercepts `/api/generate` requests and logs prompts.
@@ -18,33 +19,44 @@ LLM Monitor is a Go-based proxy server designed to intercept, monitor, and log i
 
 ## Prerequisites
 
-- **Go**: 1.25 or later (if running locally).
+- **Go**: 1.25 or later (if building locally).
+- **Node.js & npm**: (if building the web UI locally).
 - **Docker & Docker Compose**: (optional, for containerized deployment).
-- **PostgreSQL**: (if persistence is enabled).
+- **PostgreSQL**: (required for persistence and API/UI functionality).
 
 ## Getting Started
 
 ### Using Docker Compose (Recommended)
 
-The easiest way to get started is using Docker Compose, which sets up the proxy and a PostgreSQL database.
+The easiest way to get started is using Docker Compose, which sets up the proxy, the API/UI server, and a PostgreSQL database.
 
 1. Clone the repository.
 2. Run the services:
    ```bash
    docker-compose up -d
    ```
-3. The proxy will be available at `http://localhost:8080`.
+3. The **Proxy** will be available at `http://localhost:8080`.
+4. The **Web UI** will be available at `http://localhost:8081`.
 
-### Running Locally
+### Building and Running Locally
 
-1. Install dependencies:
+1. **Build Everything**:
+   Use the provided `Makefile` to build both the web assets and the Go binaries:
    ```bash
-   go mod download
+   make
    ```
-2. Set up your environment variables or modify `configs/config.yaml`.
-3. Run the application:
+   This will produce the following binaries in the `bin/` directory:
+   - `llm-monitor-proxy`: The monitoring proxy server.
+   - `llm-monitor-api`: The API server that also serves the embedded Web UI.
+
+2. **Run the Proxy**:
    ```bash
-   go run cmd/main.go -c configs/config.yaml
+   ./bin/llm-monitor-proxy -c configs/config.yaml
+   ```
+
+3. **Run the API / Web UI**:
+   ```bash
+   ./bin/llm-monitor-api -c configs/config.yaml
    ```
 
 ## Configuration
@@ -55,14 +67,20 @@ The application is configured via a YAML file (default `config.yaml`). You can u
 
 ```yaml
 logging:
-  format: "json"  # "json" or "text"
-port: 8080
-upstream: "${UPSTREAM_URL:-http://localhost:11434}"
-intercepts:
-  - endpoint: "/api/generate"
-    interceptor: "OllamaGenerateInterceptor"
-  - endpoint: "/api/chat"
-    interceptor: "OllamaChatInterceptor"
+  format: "text"  # "json" or "text"
+
+proxy:
+  port: 8080
+  upstream:
+    url: "${UPSTREAM_URL:-http://localhost:11434}"
+  intercepts:
+    - endpoint: "/api/generate"
+      interceptor: "OllamaGenerateInterceptor"
+    - endpoint: "/api/chat"
+      interceptor: "OllamaChatInterceptor"
+
+api:
+  port: 8081
 
 storage:
   type: "postgres"
