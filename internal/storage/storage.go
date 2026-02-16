@@ -61,4 +61,22 @@ type Storage interface {
 	// FindMessageByHistory finds the deepest matching message ID
 	// for the provided sequence of (role, content) pairs.
 	FindMessageByHistory(ctx context.Context, history []SimpleMessage) (messageID string, err error)
+
+	// ListConversations returns a list of all conversations, including their first message.
+	ListConversations(ctx context.Context) ([]ConversationOverview, error)
+
+	// SearchMessages searches for messages containing the given text snippet.
+	SearchMessages(ctx context.Context, query string) ([]Message, error)
+
+	// GetConversationMessages retrieves all messages belonging to a conversation.
+	GetConversationMessages(ctx context.Context, conversationID string) ([]Message, error)
+
+	// GetBranch retrieves a branch by ID.
+	GetBranch(ctx context.Context, branchID string) (*Branch, error)
+}
+
+// ConversationOverview provides a summary of a conversation.
+type ConversationOverview struct {
+	Conversation
+	FirstMessage *Message `json:"first_message,omitzero"`
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"llm-monitor/internal"
 	"llm-monitor/internal/config"
+	"llm-monitor/internal/proxy"
 	"net"
 	"net/http"
 
@@ -30,7 +31,7 @@ func main() {
 	internal.InitLogging(cfg.Logging)
 
 	// Create a custom server
-	server := internal.CreateServer(*cfg)
+	server := proxy.CreateServer(*cfg)
 	defer func() {
 		err := server.Close()
 		if err != nil {
@@ -39,7 +40,7 @@ func main() {
 	}()
 
 	// Set up a custom listener for better control
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.Port))
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.Proxy.Port))
 	if err != nil {
 		logrus.WithError(err).Fatal("Failed to create listener")
 	}

@@ -272,6 +272,160 @@ func (s *PostgresStorage) FindMessageByHistory(ctx context.Context, history []Si
 	return "", nil
 }
 
+func (s *PostgresStorage) ListConversations(ctx context.Context) ([]ConversationOverview, error) {
+	query := `
+		SELECT c.id, c.created_at, c.metadata,
+		       m.id, m.conversation_id, m.branch_id, m.role, m.content, m.model, m.sequence_number, m.created_at, m.upstream_status_code, m.upstream_error, m.parent_message_id
+		FROM conversations c
+		LEFT JOIN LATERAL (
+			SELECT * FROM messages m 
+			WHERE m.conversation_id = c.id 
+			ORDER BY m.sequence_number ASC LIMIT 1
+		) m ON true
+		ORDER BY c.created_at DESC
+	`
+	rows, err := s.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var overviews []ConversationOverview
+	for rows.Next() {
+		var o ConversationOverview
+		var metadata []byte
+		var m Message
+		var mID, mConvID, mBranchID, mRole, mContent, mModel, mError, mParentID sql.NullString
+		var mSeq sql.NullInt32
+		var mCreatedAt sql.NullTime
+		var mStatus sql.NullInt32
+
+		err := rows.Scan(
+			&o.ID, &o.CreatedAt, &metadata,
+			&mID, &mConvID, &mBranchID, &mRole, &mContent, &mModel, &mSeq, &mCreatedAt, &mStatus, &mError, &mParentID,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		if metadata != nil {
+			if err := json.Unmarshal(metadata, &o.Metadata); err != nil {
+				return nil, err
+			}
+		}
+
+		if mID.Valid {
+			m.ID = mID.String
+			m.ConversationID = mConvID.String
+			m.BranchID = mBranchID.String
+			m.Role = mRole.String
+			m.Content = mContent.String
+			m.Model = mModel.String
+			m.SequenceNumber = int(mSeq.Int32)
+			m.CreatedAt = mCreatedAt.Time
+			if mStatus.Valid {
+				m.UpstreamStatusCode = int(mStatus.Int32)
+			}
+			if mError.Valid {
+				m.UpstreamError = &mError.String
+			}
+			if mParentID.Valid {
+				m.ParentMessageID = &mParentID.String
+			}
+			o.FirstMessage = &m
+		}
+
+		overviews = append(overviews, o)
+	}
+	return overviews, nil
+}
+
+func (s *PostgresStorage) SearchMessages(ctx context.Context, query string) ([]Message, error) {
+	sqlQuery := `
+		SELECT id, conversation_id, branch_id, role, content, model, sequence_number, created_at, upstream_status_code, upstream_error, parent_message_id
+		FROM messages
+		WHERE content ILIKE $1
+		ORDER BY created_at DESC
+	`
+	rows, err := s.db.QueryContext(ctx, sqlQuery, "%"+query+"%")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return s.scanMessages(rows)
+}
+
+func (s *PostgresStorage) GetConversationMessages(ctx context.Context, conversationID string) ([]Message, error) {
+	query := `
+		SELECT id, conversation_id, branch_id, role, content, model, sequence_number, created_at, upstream_status_code, upstream_error, parent_message_id
+		FROM messages
+		WHERE conversation_id = $1
+		ORDER BY sequence_number ASC, created_at ASC
+	`
+	rows, err := s.db.QueryContext(ctx, query, conversationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return s.scanMessages(rows)
+}
+
+func (s *PostgresStorage) GetBranch(ctx context.Context, branchID string) (*Branch, error) {
+	var b Branch
+	var parentBranchID, parentMessageID sql.NullString
+	err := s.db.QueryRowContext(ctx,
+		"SELECT id, conversation_id, parent_branch_id, parent_message_id, created_at FROM branches WHERE id = $1",
+		branchID,
+	).Scan(&b.ID, &b.ConversationID, &parentBranchID, &parentMessageID, &b.CreatedAt)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if parentBranchID.Valid {
+		b.ParentBranchID = &parentBranchID.String
+	}
+	if parentMessageID.Valid {
+		b.ParentMessageID = &parentMessageID.String
+	}
+
+	return &b, nil
+}
+
+func (s *PostgresStorage) scanMessages(rows *sql.Rows) ([]Message, error) {
+	var messages []Message
+	for rows.Next() {
+		var m Message
+		var modelVal, errorText, parentMsgIDVal sql.NullString
+		var statusCode sql.NullInt32
+		err := rows.Scan(
+			&m.ID, &m.ConversationID, &m.BranchID, &m.Role, &m.Content, &modelVal, &m.SequenceNumber, &m.CreatedAt, &statusCode, &errorText, &parentMsgIDVal,
+		)
+		if err != nil {
+			return nil, err
+		}
+		if modelVal.Valid {
+			m.Model = modelVal.String
+		}
+		if statusCode.Valid {
+			m.UpstreamStatusCode = int(statusCode.Int32)
+		}
+		if errorText.Valid {
+			m.UpstreamError = &errorText.String
+		}
+		if parentMsgIDVal.Valid {
+			m.ParentMessageID = &parentMsgIDVal.String
+		}
+		messages = append(messages, m)
+	}
+	return messages, nil
+}
+
 func optional(s string) *string {
 	if s == "" {
 		return nil

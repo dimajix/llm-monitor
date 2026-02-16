@@ -1,25 +1,30 @@
 logging:
   format: "text"  # or "text" for text format
-port: 8080
-upstream:
-  url: "${UPSTREAM_URL:-http://localhost:11434}"
-  timeout: "600s"
-intercepts:
-  - endpoint: "/api/users"
-    method: "*"
-    interceptor: "CustomInterceptor"
-  - endpoint: "/api/products"
-    method: "*"
-    interceptor: "SimpleInterceptor"
-  - endpoint: "/api/logs"
-    method: "*"
-    interceptor: "LoggingInterceptor"
-  - endpoint: "/api/generate"
-    method: "POST"
-    interceptor: "OllamaGenerateInterceptor"
-  - endpoint: "/api/chat"
-    method: "POST"
-    interceptor: "OllamaChatInterceptor"
+
+proxy:
+  port: 8080
+  upstream:
+    url: "${UPSTREAM_URL:-http://localhost:11434}"
+    timeout: "600s"
+  intercepts:
+    - endpoint: "/api/users"
+      method: "*"
+      interceptor: "CustomInterceptor"
+    - endpoint: "/api/products"
+      method: "*"
+      interceptor: "SimpleInterceptor"
+    - endpoint: "/api/logs"
+      method: "*"
+      interceptor: "LoggingInterceptor"
+    - endpoint: "/api/generate"
+      method: "POST"
+      interceptor: "OllamaGenerateInterceptor"
+    - endpoint: "/api/chat"
+      method: "POST"
+      interceptor: "OllamaChatInterceptor"
+
+api:
+  port: 8081
 
 storage:
   type: "postgres"

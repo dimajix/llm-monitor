@@ -10,11 +10,22 @@ import (
 
 // Config represents the application configuration
 type Config struct {
+	Proxy   ProxyConfig `yaml:"proxy"`
+	API     APIConfig   `yaml:"api"`
+	Logging Logging     `yaml:"logging,omitempty"`
+	Storage Storage     `yaml:"storage,omitempty"`
+}
+
+// ProxyConfig represents the proxy configuration
+type ProxyConfig struct {
 	Upstream   UpstreamConfig `yaml:"upstream"`
 	Port       int            `yaml:"port"`
 	Intercepts []Intercept    `yaml:"intercepts"`
-	Logging    Logging        `yaml:"logging,omitempty"`
-	Storage    Storage        `yaml:"storage,omitempty"`
+}
+
+// APIConfig represents the API configuration
+type APIConfig struct {
+	Port int `yaml:"port"`
 }
 
 // UpstreamConfig represents the upstream configuration

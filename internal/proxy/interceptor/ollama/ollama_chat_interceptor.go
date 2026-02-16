@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"llm-monitor/internal/interceptor"
+	interceptor2 "llm-monitor/internal/proxy/interceptor"
 	"llm-monitor/internal/storage"
 	"net/http"
 	"time"
@@ -15,7 +15,7 @@ import (
 
 // ChatInterceptor intercepts chat messages between client and Ollama server
 type ChatInterceptor struct {
-	interceptor.SavingInterceptor
+	interceptor2.SavingInterceptor
 }
 
 // chatMessage represents a chat message
@@ -56,14 +56,14 @@ type chatState struct {
 }
 
 // CreateState creates a new state for the interceptor
-func (oi *ChatInterceptor) CreateState() interceptor.State {
+func (oi *ChatInterceptor) CreateState() interceptor2.State {
 	return &chatState{
 		startTime: time.Now(),
 	}
 }
 
 // RequestInterceptor intercepts the request to extract model and context information
-func (oi *ChatInterceptor) RequestInterceptor(req *http.Request, state interceptor.State) error {
+func (oi *ChatInterceptor) RequestInterceptor(req *http.Request, state interceptor2.State) error {
 	logrus.Printf("[%s] Intercepting request to %s", oi.Name, req.URL.Path)
 
 	// Read the request body
@@ -93,14 +93,14 @@ func (oi *ChatInterceptor) RequestInterceptor(req *http.Request, state intercept
 }
 
 // ResponseInterceptor intercepts the response to extract response messages
-func (oi *ChatInterceptor) ResponseInterceptor(resp *http.Response, state interceptor.State) error {
+func (oi *ChatInterceptor) ResponseInterceptor(resp *http.Response, state interceptor2.State) error {
 	ollamaState, _ := state.(*chatState)
 	ollamaState.statusCode = resp.StatusCode
 	return nil
 }
 
 // ContentInterceptor intercepts content to extract streaming messages
-func (oi *ChatInterceptor) ContentInterceptor(content []byte, state interceptor.State) ([]byte, error) {
+func (oi *ChatInterceptor) ContentInterceptor(content []byte, state interceptor2.State) ([]byte, error) {
 	ollamaState, _ := state.(*chatState)
 
 	// Parse the streaming response
@@ -115,7 +115,7 @@ func (oi *ChatInterceptor) ContentInterceptor(content []byte, state interceptor.
 }
 
 // ChunkInterceptor intercepts chunks for streaming responses
-func (oi *ChatInterceptor) ChunkInterceptor(chunk []byte, state interceptor.State) ([]byte, error) {
+func (oi *ChatInterceptor) ChunkInterceptor(chunk []byte, state interceptor2.State) ([]byte, error) {
 	ollamaState, _ := state.(*chatState)
 
 	// Parse the response to extract details
@@ -134,7 +134,7 @@ func (oi *ChatInterceptor) ChunkInterceptor(chunk []byte, state interceptor.Stat
 }
 
 // OnComplete handles completion of the request
-func (oi *ChatInterceptor) OnComplete(state interceptor.State) {
+func (oi *ChatInterceptor) OnComplete(state interceptor2.State) {
 	ollamaState, _ := state.(*chatState)
 
 	logrus.Printf("[%s] Request completed for model: %s", oi.Name, ollamaState.response.Model)
@@ -147,7 +147,7 @@ func (oi *ChatInterceptor) OnComplete(state interceptor.State) {
 }
 
 // OnError handles errors during request processing
-func (oi *ChatInterceptor) OnError(state interceptor.State, err error) {
+func (oi *ChatInterceptor) OnError(state interceptor2.State, err error) {
 	ollamaState, _ := state.(*chatState)
 	logrus.WithError(err).Warningf("[%s] Error occurred", oi.Name)
 	for _, m := range ollamaState.request.Messages {

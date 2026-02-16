@@ -143,4 +143,54 @@ func TestPostgresStorage_Branching(t *testing.T) {
 	if foundIDPartial != m2.ID {
 		t.Errorf("FindMessageByHistory (partial): expected %s, got %s", m2.ID, foundIDPartial)
 	}
+
+	// 9. Test ListConversations
+	overviews, err := storage.ListConversations(ctx)
+	if err != nil {
+		t.Fatalf("ListConversations failed: %v", err)
+	}
+	if len(overviews) != 1 {
+		t.Errorf("Expected 1 conversation overview, got %d", len(overviews))
+	} else {
+		if overviews[0].FirstMessage == nil {
+			t.Errorf("Expected first message to be populated")
+		} else if overviews[0].FirstMessage.ID != m1.ID {
+			t.Errorf("Expected first message ID %s, got %s", m1.ID, overviews[0].FirstMessage.ID)
+		}
+	}
+
+	// 10. Test SearchMessages
+	searchResults, err := storage.SearchMessages(ctx, "weather")
+	if err != nil {
+		t.Fatalf("SearchMessages failed: %v", err)
+	}
+	// m4 and m4_repeat both have "weather"
+	if len(searchResults) != 2 {
+		t.Errorf("Expected 2 search results, got %d", len(searchResults))
+	}
+
+	// 11. Test GetConversationMessages
+	convMessages, err := storage.GetConversationMessages(ctx, branch.ConversationID)
+	if err != nil {
+		t.Fatalf("GetConversationMessages failed: %v", err)
+	}
+	// m1, m2, m3, m4, m4_repeat
+	if len(convMessages) != 5 {
+		t.Errorf("Expected 5 conversation messages, got %d", len(convMessages))
+	}
+
+	// 12. Test GetBranch
+	b, err := storage.GetBranch(ctx, m4.BranchID)
+	if err != nil {
+		t.Fatalf("GetBranch failed: %v", err)
+	}
+	if b == nil {
+		t.Fatalf("Expected branch to be found")
+	}
+	if b.ID != m4.BranchID {
+		t.Errorf("Expected branch ID %s, got %s", m4.BranchID, b.ID)
+	}
+	if b.ParentMessageID == nil || *b.ParentMessageID != m2.ID {
+		t.Errorf("Expected parent message ID %s, got %v", m2.ID, b.ParentMessageID)
+	}
 }

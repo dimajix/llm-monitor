@@ -8,9 +8,12 @@ import (
 func TestLoadConfig_EnvSubstitution(t *testing.T) {
 	// Create a temporary config file with env vars
 	content := `
-port: ${PORT:-9090}
-upstream:
-  url: ${UPSTREAM_URL}
+proxy:
+  port: ${PORT:-9090}
+  upstream:
+    url: ${UPSTREAM_URL}
+api:
+  port: ${API_PORT:-8082}
 storage:
   type: "postgres"
   postgres:
@@ -50,11 +53,14 @@ storage:
 		t.Fatalf("Failed to load config: %v", err)
 	}
 
-	if cfg.Port != 9090 {
-		t.Errorf("Expected Port 9090, got %d", cfg.Port)
+	if cfg.Proxy.Port != 9090 {
+		t.Errorf("Expected Port 9090, got %d", cfg.Proxy.Port)
 	}
-	if cfg.Upstream.URL != "http://ollama:11434" {
-		t.Errorf("Expected Upstream http://ollama:11434, got %s", cfg.Upstream.URL)
+	if cfg.API.Port != 8082 {
+		t.Errorf("Expected API Port 8082, got %d", cfg.API.Port)
+	}
+	if cfg.Proxy.Upstream.URL != "http://ollama:11434" {
+		t.Errorf("Expected Upstream http://ollama:11434, got %s", cfg.Proxy.Upstream.URL)
 	}
 	expectedDSN := "postgres://admin:secret@db.example.com:5432/mydb?sslmode=disable"
 	if cfg.Storage.Postgres.DSN != expectedDSN {
@@ -65,9 +71,12 @@ storage:
 func TestLoadConfig_EnvDefaults(t *testing.T) {
 	// Create a temporary config file with env vars and defaults
 	content := `
-port: ${PORT:-8081}
-upstream:
-  url: ${UPSTREAM_URL:-http://localhost:11434}
+proxy:
+  port: ${PORT:-8081}
+  upstream:
+    url: ${UPSTREAM_URL:-http://localhost:11434}
+api:
+  port: ${API_PORT:-8083}
 `
 	tmpfile, err := os.CreateTemp("", "config_defaults_*.yaml")
 	if err != nil {
@@ -91,20 +100,26 @@ upstream:
 		t.Fatalf("Failed to load config: %v", err)
 	}
 
-	if cfg.Port != 8081 {
-		t.Errorf("Expected Port 8081 (default), got %d", cfg.Port)
+	if cfg.Proxy.Port != 8081 {
+		t.Errorf("Expected Port 8081 (default), got %d", cfg.Proxy.Port)
 	}
-	if cfg.Upstream.URL != "http://localhost:11434" {
-		t.Errorf("Expected Upstream http://localhost:11434 (default), got %s", cfg.Upstream.URL)
+	if cfg.API.Port != 8083 {
+		t.Errorf("Expected API Port 8083 (default), got %d", cfg.API.Port)
+	}
+	if cfg.Proxy.Upstream.URL != "http://localhost:11434" {
+		t.Errorf("Expected Upstream http://localhost:11434 (default), got %s", cfg.Proxy.Upstream.URL)
 	}
 }
 
 func TestLoadConfig_Timeout(t *testing.T) {
 	content := `
-port: 8080
-upstream:
-  url: http://localhost:11434
-  timeout: 60s
+proxy:
+  port: 8080
+  upstream:
+    url: http://localhost:11434
+    timeout: 60s
+api:
+  port: 8081
 storage:
   type: postgres
   timeout: 10s
@@ -127,8 +142,8 @@ storage:
 		t.Fatalf("Failed to load config: %v", err)
 	}
 
-	if cfg.Upstream.Timeout != "60s" {
-		t.Errorf("Expected Upstream Timeout 60s, got %s", cfg.Upstream.Timeout)
+	if cfg.Proxy.Upstream.Timeout != "60s" {
+		t.Errorf("Expected Upstream Timeout 60s, got %s", cfg.Proxy.Upstream.Timeout)
 	}
 	if cfg.Storage.Timeout != "10s" {
 		t.Errorf("Expected Storage Timeout 10s, got %s", cfg.Storage.Timeout)
@@ -137,13 +152,16 @@ storage:
 
 func TestLoadConfig_Intercepts(t *testing.T) {
 	content := `
-intercepts:
-  - endpoint: "/api/chat"
-    method: "POST"
-    interceptor: "OllamaChatInterceptor"
-  - endpoint: "/api/generate"
-    method: "*"
-    interceptor: "OllamaGenerateInterceptor"
+proxy:
+  intercepts:
+    - endpoint: "/api/chat"
+      method: "POST"
+      interceptor: "OllamaChatInterceptor"
+    - endpoint: "/api/generate"
+      method: "*"
+      interceptor: "OllamaGenerateInterceptor"
+api:
+  port: 8081
 `
 	tmpfile, err := os.CreateTemp("", "config_intercepts_*.yaml")
 	if err != nil {
@@ -163,15 +181,15 @@ intercepts:
 		t.Fatalf("Failed to load config: %v", err)
 	}
 
-	if len(cfg.Intercepts) != 2 {
-		t.Fatalf("Expected 2 intercepts, got %d", len(cfg.Intercepts))
+	if len(cfg.Proxy.Intercepts) != 2 {
+		t.Fatalf("Expected 2 intercepts, got %d", len(cfg.Proxy.Intercepts))
 	}
 
-	if cfg.Intercepts[0].Endpoint != "/api/chat" || cfg.Intercepts[0].Method != "POST" {
-		t.Errorf("Unexpected intercept 0: %+v", cfg.Intercepts[0])
+	if cfg.Proxy.Intercepts[0].Endpoint != "/api/chat" || cfg.Proxy.Intercepts[0].Method != "POST" {
+		t.Errorf("Unexpected intercept 0: %+v", cfg.Proxy.Intercepts[0])
 	}
 
-	if cfg.Intercepts[1].Endpoint != "/api/generate" || cfg.Intercepts[1].Method != "*" {
-		t.Errorf("Unexpected intercept 1: %+v", cfg.Intercepts[1])
+	if cfg.Proxy.Intercepts[1].Endpoint != "/api/generate" || cfg.Proxy.Intercepts[1].Method != "*" {
+		t.Errorf("Unexpected intercept 1: %+v", cfg.Proxy.Intercepts[1])
 	}
 }

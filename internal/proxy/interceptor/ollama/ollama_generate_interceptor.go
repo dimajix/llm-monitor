@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"llm-monitor/internal/interceptor"
+	interceptor2 "llm-monitor/internal/proxy/interceptor"
 	"llm-monitor/internal/storage"
 	"net/http"
 	"time"
@@ -15,7 +15,7 @@ import (
 
 // GenerateInterceptor records traffic between a Client and an Ollama server
 type GenerateInterceptor struct {
-	interceptor.SavingInterceptor
+	interceptor2.SavingInterceptor
 }
 
 // generateRequest represents the structure of a request to the /api/generate endpoint
@@ -52,14 +52,14 @@ type generateState struct {
 }
 
 // CreateState creates a new generateState for tracking requests
-func (oi *GenerateInterceptor) CreateState() interceptor.State {
+func (oi *GenerateInterceptor) CreateState() interceptor2.State {
 	return &generateState{
 		startTime: time.Now(),
 	}
 }
 
 // RequestInterceptor intercepts the request to /api/generate
-func (oi *GenerateInterceptor) RequestInterceptor(req *http.Request, state interceptor.State) error {
+func (oi *GenerateInterceptor) RequestInterceptor(req *http.Request, state interceptor2.State) error {
 	logrus.Printf("[%s] Intercepting request to %s", oi.Name, req.URL.Path)
 
 	// Read the request body
@@ -89,14 +89,14 @@ func (oi *GenerateInterceptor) RequestInterceptor(req *http.Request, state inter
 }
 
 // ResponseInterceptor intercepts the response from /api/generate
-func (oi *GenerateInterceptor) ResponseInterceptor(resp *http.Response, state interceptor.State) error {
+func (oi *GenerateInterceptor) ResponseInterceptor(resp *http.Response, state interceptor2.State) error {
 	ollamaState, _ := state.(*generateState)
 	ollamaState.statusCode = resp.StatusCode
 	return nil
 }
 
 // ContentInterceptor intercepts content (not used for this specific interceptor)
-func (oi *GenerateInterceptor) ContentInterceptor(content []byte, state interceptor.State) ([]byte, error) {
+func (oi *GenerateInterceptor) ContentInterceptor(content []byte, state interceptor2.State) ([]byte, error) {
 	ollamaState, _ := state.(*generateState)
 
 	// Parse the response to extract details
@@ -111,7 +111,7 @@ func (oi *GenerateInterceptor) ContentInterceptor(content []byte, state intercep
 }
 
 // ChunkInterceptor intercepts chunks (not used for this specific interceptor)
-func (oi *GenerateInterceptor) ChunkInterceptor(chunk []byte, state interceptor.State) ([]byte, error) {
+func (oi *GenerateInterceptor) ChunkInterceptor(chunk []byte, state interceptor2.State) ([]byte, error) {
 	ollamaState, _ := state.(*generateState)
 
 	// Parse the response to extract details
@@ -130,7 +130,7 @@ func (oi *GenerateInterceptor) ChunkInterceptor(chunk []byte, state interceptor.
 }
 
 // OnComplete is called when the request is completed
-func (oi *GenerateInterceptor) OnComplete(state interceptor.State) {
+func (oi *GenerateInterceptor) OnComplete(state interceptor2.State) {
 	ollamaState, _ := state.(*generateState)
 	ollamaState.endTime = time.Now()
 
@@ -142,7 +142,7 @@ func (oi *GenerateInterceptor) OnComplete(state interceptor.State) {
 }
 
 // OnError is called when an error occurs
-func (oi *GenerateInterceptor) OnError(state interceptor.State, err error) {
+func (oi *GenerateInterceptor) OnError(state interceptor2.State, err error) {
 	ollamaState, _ := state.(*generateState)
 	logrus.WithError(err).Warningf("[%s] Error occurred: %v", oi.Name, err)
 	logrus.Printf("[%s] Prompt: %s", oi.Name, ollamaState.request.Prompt)

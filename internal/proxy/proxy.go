@@ -1,14 +1,13 @@
-package handler
+package proxy
 
 import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"llm-monitor/internal/proxy/interceptor"
 	"net/http"
 	"net/url"
 	"time"
-
-	"llm-monitor/internal/interceptor"
 
 	"github.com/sirupsen/logrus"
 )
