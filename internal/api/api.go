@@ -5,7 +5,6 @@ import (
 	"llm-monitor/internal/storage"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/sirupsen/logrus"
 )
@@ -14,68 +13,63 @@ type APIHandler struct {
 	storage storage.Storage
 }
 
-func NewAPIHandler(s storage.Storage) *APIHandler {
-	return &APIHandler{storage: s}
-}
+func NewAPIHandler(s storage.Storage) http.Handler {
+	h := &APIHandler{storage: s}
+	mux := http.NewServeMux()
 
-func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Simple CORS implementation
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	// Define routes with method and path parameters (Go 1.22+ style)
+	mux.HandleFunc("GET /api/v1/conversations", h.listConversations)
+	mux.HandleFunc("GET /api/v1/conversations/{id}", h.getConversationMessages)
+	mux.HandleFunc("GET /api/v1/search", h.handleSearch)
+	mux.HandleFunc("GET /api/v1/branches/{id}", h.handleBranch)
 
-	if r.Method == http.MethodOptions {
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
+	// Wrap mux with CORS middleware
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
-	if strings.HasPrefix(r.URL.Path, "/api/v1/conversations") {
-		h.handleConversations(w, r)
-		return
-	}
-	if strings.HasPrefix(r.URL.Path, "/api/v1/search") {
-		h.handleSearch(w, r)
-		return
-	}
-	if strings.HasPrefix(r.URL.Path, "/api/v1/branches/") {
-		h.handleBranch(w, r)
-		return
-	}
-
-	http.NotFound(w, r)
-}
-
-func (h *APIHandler) handleConversations(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	path := strings.TrimPrefix(r.URL.Path, "/api/v1/conversations")
-	path = strings.Trim(path, "/")
-
-	if path == "" {
-		// List all conversations
-		p := h.getPagination(r)
-		overviews, err := h.storage.ListConversations(ctx, p)
-		if err != nil {
-			logrus.WithError(err).Error("Failed to list conversations")
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
 			return
 		}
-		respondJSON(w, overviews)
-		return
-	}
 
-	// Get specific conversation messages
-	// path is the ID
-	messages, err := h.storage.GetConversationMessages(ctx, path)
+		mux.ServeHTTP(w, r)
+	})
+}
+
+func (h *APIHandler) listConversations(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	p := h.getPagination(r)
+	overviews, err := h.storage.ListConversations(ctx, p)
 	if err != nil {
-		logrus.WithError(err).Errorf("Failed to get messages for conversation %s", path)
+		logrus.WithError(err).Error("Failed to list conversations")
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+	respondJSON(w, overviews)
+}
+
+func (h *APIHandler) getConversationMessages(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id := r.PathValue("id")
+	if id == "" {
+		http.Error(w, "Conversation ID is required", http.StatusBadRequest)
+		return
+	}
+
+	messages, err := h.storage.GetConversationMessages(ctx, id)
+	if err != nil {
+		logrus.WithError(err).Errorf("Failed to get messages for conversation %s", id)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
 	if len(messages) == 0 {
 		// Check if conversation exists
-		conv, err := h.storage.GetConversation(ctx, path)
+		conv, err := h.storage.GetConversation(ctx, id)
 		if err != nil {
-			logrus.WithError(err).Errorf("Failed to check conversation %s", path)
+			logrus.WithError(err).Errorf("Failed to check conversation %s", id)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
@@ -106,7 +100,7 @@ func (h *APIHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 
 func (h *APIHandler) handleBranch(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	branchID := strings.TrimPrefix(r.URL.Path, "/api/v1/branches/")
+	branchID := r.PathValue("id")
 	if branchID == "" {
 		http.Error(w, "Branch ID is required", http.StatusBadRequest)
 		return
