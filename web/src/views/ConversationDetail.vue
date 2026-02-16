@@ -7,9 +7,9 @@
       <v-card-subtitle>Branch: {{ currentBranchId || mainBranchId || 'unknown' }}</v-card-subtitle>
       <v-divider />
 
-      <v-list lines="three">
+      <v-list>
         <template v-for="m in visibleMessages" :key="m.id">
-          <chat-message :message="m" expandable>
+          <chat-message :message="m" full-size>
             <template #append>
               <div class="d-flex align-center">
                 <v-tooltip v-if="(m.child_branch_ids?.length || 0) > 0" text="Switch branch from here">
@@ -133,8 +133,3 @@ watch(() => props.initialBranchId, (newId) => {
 })
 </script>
 
-<style scoped>
-.message-text {
-  white-space: pre-wrap;
-}
-</style>

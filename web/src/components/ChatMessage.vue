@@ -1,5 +1,5 @@
 <template>
-  <v-list-item :class="{ 'chat-message': true, 'clickable': clickable || expandable }" @click="handleClick">
+  <v-list-item :class="{ 'chat-message': true, 'clickable': clickable }" @click="handleClick">
     <template #prepend>
       <v-avatar size="28" color="grey-lighten-2">
         <span class="text-caption">{{ roleInitial }}</span>
@@ -12,10 +12,9 @@
         <v-chip class="ml-2" size="x-small" variant="flat">{{ message.role }}</v-chip>
         <v-chip v-if="message.model" class="ml-1" size="x-small" variant="outlined" color="secondary">{{ message.model }}</v-chip>
       </div>
-      <v-btn v-if="expandable" icon="mdi-fullscreen" size="x-small" variant="text" @click.stop="dialog = true"></v-btn>
     </v-list-item-title>
 
-    <v-list-item-subtitle class="py-2 text-wrap" style="opacity: 1">
+  <v-list-item-subtitle class="py-2 message-content" :class="{ 'full-size': fullSize }" style="opacity: 1">
       <div class="message-text" v-html="renderedContent"></div>
     </v-list-item-subtitle>
 
@@ -23,32 +22,6 @@
       <slot name="append"></slot>
     </template>
   </v-list-item>
-
-  <v-dialog v-if="expandable" v-model="dialog" max-width="90vw">
-    <v-card>
-      <v-card-title class="d-flex align-center justify-space-between">
-        <div class="d-flex align-center">
-          <v-avatar size="28" color="grey-lighten-2" class="mr-3">
-            <span class="text-caption">{{ roleInitial }}</span>
-          </v-avatar>
-          <div>
-            <span class="text-body-2 text-medium-emphasis">{{ formattedDate }}</span>
-            <v-chip class="ml-2" size="x-small" variant="flat">{{ message.role }}</v-chip>
-            <v-chip v-if="message.model" class="ml-1" size="x-small" variant="outlined" color="secondary">{{ message.model }}</v-chip>
-          </div>
-        </div>
-        <v-btn icon="mdi-close" size="small" variant="text" @click="dialog = false"></v-btn>
-      </v-card-title>
-      <v-divider />
-      <v-card-text class="message-text pt-4" v-html="renderedContent">
-      </v-card-text>
-      <v-divider />
-      <v-card-actions>
-        <v-spacer />
-        <v-btn variant="text" @click="dialog = false">Close</v-btn>
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
 </template>
 
 <script setup lang="ts">
@@ -63,14 +36,12 @@ const md = new MarkdownIt({
 const props = defineProps<{
   message: Message
   clickable?: boolean
-  expandable?: boolean
+  fullSize?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'click', message: Message): void
 }>()
-
-const dialog = ref(false)
 
 const roleInitial = computed(() => {
   return props.message.role ? props.message.role[0].toUpperCase() : '?'
@@ -89,13 +60,16 @@ const renderedContent = computed(() => {
 function handleClick() {
   if (props.clickable) {
     emit('click', props.message)
-  } else if (props.expandable) {
-    dialog.value = true
   }
 }
 </script>
 
 <style scoped>
+.message-content.full-size {
+  white-space: normal !important;
+  display: block !important;
+  -webkit-line-clamp: initial !important;
+}
 .message-text {
   font-family: inherit;
   opacity: 1;
