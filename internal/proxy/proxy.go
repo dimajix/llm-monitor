@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"llm-monitor/internal/proxy/interceptor"
+	"net"
 	"net/http"
 	"net/url"
 	"time"
@@ -21,8 +22,14 @@ type ProxyHandler struct {
 }
 
 func createHttpTransport() *http.Transport {
+	dialer := &net.Dialer{
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}
+
 	// Create a custom HTTP client with TLS configuration
 	return &http.Transport{
+		DialContext:     dialer.DialContext,
 		TLSClientConfig: &tls.Config{
 			// Remove InsecureSkipVerify for production use
 			// InsecureSkipVerify: true, // For demo purposes only
@@ -262,5 +269,9 @@ func (cw *chunkWriter) Write(data []byte) (int, error) {
 	}
 
 	// Write the processed chunk
-	return cw.ResponseWriter.Write(data)
+	n, err := cw.ResponseWriter.Write(data)
+	if f, ok := cw.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+	return n, err
 }
