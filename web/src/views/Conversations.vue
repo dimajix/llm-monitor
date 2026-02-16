@@ -13,40 +13,23 @@
     <v-card>
       <v-list lines="three">
         <template v-if="!search">
-          <v-list-item
-            v-for="c in conversations"
-            :key="c.id"
-            :title="formatDate(c.created_at)"
-            :subtitle="c.first_message?.content || 'No messages yet'"
-            @click="goDetail(c.id)"
-            class="conversation-item"
-          >
-            <template #prepend>
-              <v-icon color="primary">mdi-message-text-outline</v-icon>
-            </template>
-            <template #append>
-              <v-chip size="small" variant="flat">{{ c.first_message?.role || '-' }}</v-chip>
-            </template>
-          </v-list-item>
+          <template v-for="c in conversations" :key="c.id">
+            <chat-message
+              v-if="c.first_message"
+              :message="c.first_message"
+              clickable
+              @click="goDetail(c.id)"
+            />
+          </template>
         </template>
         <template v-else>
-          <v-list-item
+          <chat-message
             v-for="m in foundMessages"
             :key="m.id"
-            :title="formatDate(m.created_at)"
+            :message="m"
+            clickable
             @click="goMessageDetail(m)"
-            class="conversation-item"
-          >
-            <template #prepend>
-              <v-icon color="secondary">mdi-message-text-outline</v-icon>
-            </template>
-            <v-list-item-subtitle class="text-body-2 text-high-emphasis">
-              <span class="font-weight-bold">{{ m.role }}:</span> {{ m.content }}
-            </v-list-item-subtitle>
-            <template #append>
-              <v-chip size="small" variant="flat">{{ m.role }}</v-chip>
-            </template>
-          </v-list-item>
+          />
           <v-list-item v-if="!loading && foundMessages.length === 0">
             <v-list-item-title>No messages found matching "{{ search }}"</v-list-item-title>
           </v-list-item>
@@ -68,6 +51,7 @@
 import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { listConversations, searchMessages, type ConversationOverview, type Message } from '../services/api'
+import ChatMessage from '../components/ChatMessage.vue'
 
 const router = useRouter()
 
@@ -130,11 +114,6 @@ function goMessageDetail(m: Message) {
     params: { id: m.conversation_id },
     query: { branchId: m.branch_id }
   })
-}
-
-function formatDate(iso: string) {
-  const d = new Date(iso)
-  return d.toLocaleString()
 }
 
 onMounted(load)

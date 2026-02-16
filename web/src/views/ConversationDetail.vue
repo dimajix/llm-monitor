@@ -9,23 +9,7 @@
 
       <v-list lines="three">
         <template v-for="m in visibleMessages" :key="m.id">
-          <v-list-item>
-            <template #prepend>
-              <v-avatar size="28" color="grey-lighten-2">
-                <span class="text-caption">{{ m.role[0]?.toUpperCase() }}</span>
-              </v-avatar>
-            </template>
-            <v-list-item-title class="d-flex align-center justify-space-between">
-              <div>
-                <span class="text-medium-emphasis">{{ formatDate(m.created_at) }}</span>
-                <v-chip class="ml-2" size="x-small" variant="flat">{{ m.role }}</v-chip>
-                <v-chip v-if="m.model" class="ml-1" size="x-small" variant="text">{{ m.model }}</v-chip>
-              </div>
-            </v-list-item-title>
-            <v-list-item-subtitle class="py-2">
-              <pre class="mb-0 message-text">{{ m.content }}</pre>
-            </v-list-item-subtitle>
-
+          <chat-message :message="m">
             <template #append>
               <div class="d-flex align-center">
                 <v-tooltip v-if="(m.child_branch_ids?.length || 0) > 0" text="Switch branch from here">
@@ -35,7 +19,7 @@
                 </v-tooltip>
               </div>
             </template>
-          </v-list-item>
+          </chat-message>
           <v-divider />
         </template>
       </v-list>
@@ -74,6 +58,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { getConversationMessages, getBranchHistory, type Message } from '../services/api'
+import ChatMessage from '../components/ChatMessage.vue'
 
 const props = defineProps<{
   id: string
@@ -121,11 +106,6 @@ const visibleMessages = computed(() => {
   if (!currentBranchId.value) return []
   return allMessages.value.filter((m) => m.branch_id === currentBranchId.value).sort((a, b) => a.sequence_number - b.sequence_number)
 })
-
-function formatDate(iso: string) {
-  const d = new Date(iso)
-  return d.toLocaleString()
-}
 
 function openBranches(m: Message) {
   selectedMessage.value = m
