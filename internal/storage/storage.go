@@ -12,6 +12,12 @@ type Conversation struct {
 	Metadata  map[string]interface{} `json:"metadata,omitzero"`
 }
 
+// ConversationOverview provides a summary of a conversation.
+type ConversationOverview struct {
+	Conversation
+	FirstMessage *Message `json:"first_message,omitzero"`
+}
+
 // Branch represents a path within a conversation.
 type Branch struct {
 	ID              string    `json:"id"`
@@ -79,10 +85,4 @@ type Storage interface {
 
 	// GetBranch retrieves a branch by ID.
 	GetBranch(ctx context.Context, branchID string) (*Branch, error)
-}
-
-// ConversationOverview provides a summary of a conversation.
-type ConversationOverview struct {
-	Conversation
-	FirstMessage *Message `json:"first_message,omitzero"`
 }

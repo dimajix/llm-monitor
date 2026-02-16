@@ -2,7 +2,7 @@
 vendor/
 
 # Binary files
-llm-monitor
+llm-monitor-*
 *.exe
 *.exe~
 *.dll
@@ -12,6 +12,9 @@ llm-monitor
 # Test and coverage files
 *_test.go
 coverage.out
+
+# NPM files
+web/node_modules
 
 # Docker files
 Dockerfile

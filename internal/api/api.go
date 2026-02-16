@@ -19,6 +19,16 @@ func NewAPIHandler(s storage.Storage) *APIHandler {
 }
 
 func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Simple CORS implementation
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
 	if strings.HasPrefix(r.URL.Path, "/api/v1/conversations") {
 		h.handleConversations(w, r)
 		return
@@ -96,7 +106,7 @@ func (h *APIHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 
 func (h *APIHandler) handleBranch(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	branchID := strings.TrimPrefix(r.URL.Path, "/branches/")
+	branchID := strings.TrimPrefix(r.URL.Path, "/api/v1/branches/")
 	if branchID == "" {
 		http.Error(w, "Branch ID is required", http.StatusBadRequest)
 		return

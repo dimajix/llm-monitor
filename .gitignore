@@ -1,5 +1,5 @@
 # Binary files
-llm-monitor
+llm-monitor-*
 *.exe
 *.exe~
 *.dll
@@ -9,6 +9,9 @@ llm-monitor
 # Test files
 _coverage.out
 *.cover
+
+# NPM files
+web/node_modules
 
 # IDE
 .idea/
