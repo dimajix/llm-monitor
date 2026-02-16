@@ -11,6 +11,14 @@
         <span class="text-medium-emphasis">{{ formattedDate }}</span>
         <v-chip class="ml-2" size="x-small" variant="flat">{{ message.role }}</v-chip>
         <v-chip v-if="message.model" class="ml-1" size="x-small" variant="outlined" color="secondary">{{ message.model }}</v-chip>
+        <v-chip v-if="message.prompt_tokens || message.completion_tokens" class="ml-1" size="x-small" variant="text" color="grey">
+          <v-icon start icon="mdi-memory" size="12"></v-icon>
+          {{ message.prompt_tokens || 0 }} prompt tokens / {{ message.completion_tokens || 0 }} completion tokens
+        </v-chip>
+        <v-chip v-if="message.prompt_eval_duration || message.eval_duration" class="ml-1" size="x-small" variant="text" color="grey">
+          <v-icon start icon="mdi-timer-outline" size="12"></v-icon>
+          {{ formattedDurations }}
+        </v-chip>
       </div>
     </v-list-item-title>
 
@@ -55,6 +63,24 @@ const formattedDate = computed(() => {
 
 const renderedContent = computed(() => {
   return md.render(props.message.content || '')
+})
+
+function formatDuration(ns?: number): string | null {
+  if (!ns || ns <= 0) return null
+  const ms = ns / 1e6
+  if (ms < 1000) return `${Math.round(ms)} ms`
+  const s = ms / 1000
+  if (s < 60) return `${s.toFixed(2)} s`
+  const m = Math.floor(s / 60)
+  const rs = (s % 60).toFixed(1)
+  return `${m}m ${rs}s`
+}
+
+const formattedDurations = computed(() => {
+  const prompt = formatDuration(props.message.prompt_eval_duration)
+  const gen = formatDuration(props.message.eval_duration)
+  if (prompt && gen) return `prompt ${prompt} / output ${gen}`
+  return prompt ? `prompt ${prompt}` : gen ? `output ${gen}` : ''
 })
 
 function handleClick() {

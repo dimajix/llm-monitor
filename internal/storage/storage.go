@@ -29,9 +29,13 @@ type Branch struct {
 
 // SimpleMessage represents a basic chat message with role and content.
 type SimpleMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-	Model   string `json:"model,omitzero"`
+	Role               string        `json:"role"`
+	Content            string        `json:"content"`
+	Model              string        `json:"model,omitzero"`
+	PromptTokens       int           `json:"prompt_tokens,omitzero"`
+	CompletionTokens   int           `json:"completion_tokens,omitzero"`
+	PromptEvalDuration time.Duration `json:"prompt_eval_duration,omitzero"`
+	EvalDuration       time.Duration `json:"eval_duration,omitzero"`
 }
 
 // Message represents a single chat message.

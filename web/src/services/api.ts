@@ -18,6 +18,10 @@ export type Message = {
   role: string
   content: string
   model?: string
+  prompt_tokens?: number
+  completion_tokens?: number
+  prompt_eval_duration?: number
+  eval_duration?: number
   upstream_status_code?: number
   upstream_error?: string | null
   parent_message_id?: string | null

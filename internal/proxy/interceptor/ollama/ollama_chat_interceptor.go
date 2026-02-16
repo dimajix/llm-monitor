@@ -168,9 +168,13 @@ func (oi *ChatInterceptor) saveLog(ollamaState *chatState) {
 			history[i] = storage.SimpleMessage{Role: m.Role, Content: m.Content, Model: ollamaState.request.Model}
 		}
 		assistantMsg := storage.SimpleMessage{
-			Role:    ollamaState.response.Message.Role,
-			Content: ollamaState.response.Message.Content,
-			Model:   ollamaState.response.Model,
+			Role:               ollamaState.response.Message.Role,
+			Content:            ollamaState.response.Message.Content,
+			Model:              ollamaState.response.Model,
+			PromptTokens:       ollamaState.response.PromptEvalCount,
+			CompletionTokens:   ollamaState.response.EvalCount,
+			PromptEvalDuration: time.Duration(ollamaState.response.PromptEvalDuration),
+			EvalDuration:       time.Duration(ollamaState.response.EvalDuration),
 		}
 
 		oi.SaveToStorage(ctx, history, assistantMsg, ollamaState.statusCode)

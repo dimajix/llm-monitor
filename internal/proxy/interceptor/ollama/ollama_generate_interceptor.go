@@ -160,9 +160,13 @@ func (oi *GenerateInterceptor) saveLog(ollamaState *generateState) {
 			{Role: "user", Content: ollamaState.request.Prompt, Model: ollamaState.request.Model},
 		}
 		assistantMsg := storage.SimpleMessage{
-			Role:    "assistant",
-			Content: ollamaState.response.Response,
-			Model:   ollamaState.response.Model,
+			Role:               "assistant",
+			Content:            ollamaState.response.Response,
+			Model:              ollamaState.response.Model,
+			PromptTokens:       ollamaState.response.PromptEvalCount,
+			CompletionTokens:   ollamaState.response.EvalCount,
+			PromptEvalDuration: time.Duration(ollamaState.response.PromptEvalDuration),
+			EvalDuration:       time.Duration(ollamaState.response.EvalDuration),
 		}
 
 		oi.SaveToStorage(ctx, history, assistantMsg, ollamaState.statusCode)

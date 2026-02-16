@@ -34,6 +34,10 @@ CREATE TABLE messages (
     child_branch_ids UUID[] DEFAULT '{}',
     upstream_status_code INT,
     upstream_error TEXT,
+    prompt_tokens INT,
+    completion_tokens INT,
+    prompt_eval_duration BIGINT,
+    eval_duration BIGINT,
     parent_message_id UUID REFERENCES messages(id),
     
     UNIQUE (branch_id, sequence_number)
@@ -57,4 +61,4 @@ CREATE TABLE IF NOT EXISTS schema_version (
     applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-INSERT INTO schema_version (version) VALUES (3) ON CONFLICT (version) DO UPDATE SET version = 3;
+INSERT INTO schema_version (version) VALUES (5) ON CONFLICT (version) DO UPDATE SET version = 5;
