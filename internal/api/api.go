@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"llm-monitor/internal/storage"
+	"llm-monitor/web"
 	"net/http"
 	"strconv"
 
@@ -22,6 +23,10 @@ func NewAPIHandler(s storage.Storage) http.Handler {
 	mux.HandleFunc("GET /api/v1/conversations/{id}", h.getConversationMessages)
 	mux.HandleFunc("GET /api/v1/search", h.handleSearch)
 	mux.HandleFunc("GET /api/v1/branches/{id}", h.handleBranch)
+
+	// Serve static UI assets
+	uiHandler := web.NewUIHandler()
+	mux.Handle("/", uiHandler)
 
 	// Wrap mux with CORS middleware
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

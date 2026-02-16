@@ -1,3 +1,11 @@
+# Build web stage
+FROM node:20-alpine AS web-builder
+WORKDIR /web
+COPY web/package*.json ./
+RUN npm install
+COPY web/ ./
+RUN npm run build
+
 # Build stage
 FROM golang:1.25-alpine AS builder
 
@@ -9,6 +17,9 @@ RUN go mod download
 
 # Copy source code
 COPY . .
+
+# Copy built web assets
+COPY --from=web-builder /web/dist ./web/dist
 
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux \

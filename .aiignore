@@ -5,6 +5,7 @@ llm-monitor
 *.dll
 *.so
 *.dylib
+bin
 
 # Test files
 _coverage.out
