@@ -3,7 +3,7 @@ logging:
 port: 8080
 upstream:
   url: "${UPSTREAM_URL:-http://localhost:11434}"
-  timeout: "30s"
+  timeout: "600s"
 intercepts:
   - endpoint: "/api/users"
     method: "*"

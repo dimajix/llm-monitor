@@ -1,0 +1,25 @@
+# Binary files
+llm-monitor
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test files
+_coverage.out
+*.cover
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Temporary files
+*~
+*.tmp
+*.temp
