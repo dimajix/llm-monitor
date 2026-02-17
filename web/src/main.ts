@@ -11,6 +11,9 @@ import { mdiMagnify, mdiMessageTextOutline, mdiArrowLeft, mdiHistory, mdiAccount
 import Conversations from './views/Conversations.vue'
 import ConversationDetail from './views/ConversationDetail.vue'
 
+// Syntax highlighting theme for code blocks rendered from Markdown
+import 'highlight.js/styles/github.css'
+
 const vuetify = createVuetify({
   icons: {
     defaultSet: 'mdi',

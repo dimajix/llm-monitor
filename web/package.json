@@ -11,12 +11,14 @@
   "dependencies": {
     "@mdi/js": "^7.4.47",
     "axios": "^1.7.7",
+    "highlight.js": "^11.11.1",
     "markdown-it": "^14.1.1",
     "vue": "^3.5.11",
     "vue-router": "^4.4.5",
     "vuetify": "^3.7.4"
   },
   "devDependencies": {
+    "@types/highlight.js": "^9.12.4",
     "@types/markdown-it": "^14.1.2",
     "@vitejs/plugin-vue": "^5.1.4",
     "sass": "^1.77.8",

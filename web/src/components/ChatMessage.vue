@@ -48,9 +48,24 @@
 import { computed } from 'vue'
 import type { Message } from '../services/api'
 import MarkdownIt from 'markdown-it'
+import hljs from 'highlight.js'
 
 const md = new MarkdownIt({
-  breaks: true
+  breaks: true,
+  highlight(code, lang) {
+    try {
+      if (lang && hljs.getLanguage(lang)) {
+        const { value } = hljs.highlight(code, { language: lang, ignoreIllegals: true })
+        return `<pre><code class="hljs language-${lang}">${value}</code></pre>`
+      }
+      const { value } = hljs.highlightAuto(code)
+      return `<pre><code class="hljs">${value}</code></pre>`
+    } catch (_) {
+      // Fallback: escape HTML safely when highlighting fails
+      const esc = MarkdownIt().utils.escapeHtml
+      return `<pre><code class="hljs">${esc(code)}</code></pre>`
+    }
+  }
 })
 
 const props = defineProps<{
