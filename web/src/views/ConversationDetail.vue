@@ -2,32 +2,37 @@
   <div>
     <v-btn variant="text" prepend-icon="$arrow-left" @click="$router.back()">Back</v-btn>
 
-    <v-card class="mt-2" :loading="loading">
-      <v-card-title>Conversation {{ id }}</v-card-title>
-      <v-card-subtitle>Branch: {{ currentBranchId || mainBranchId || 'unknown' }}</v-card-subtitle>
+    <div class="mt-2" v-if="!loading || allMessages.length > 0">
+      <div class="d-flex align-center px-4 py-2">
+        <div>
+          <h2 class="text-h6">Conversation {{ id }}</h2>
+          <div class="text-subtitle-2 opacity-70">Branch: {{ currentBranchId || mainBranchId || 'unknown' }}</div>
+        </div>
+        <v-spacer />
+        <v-progress-circular v-if="loading" indeterminate size="24" color="primary"></v-progress-circular>
+      </div>
       <v-divider />
 
-      <v-list>
+      <div class="chat-messages-list py-4">
         <template v-for="m in visibleMessages" :key="m.id">
-          <chat-message :message="m" full-size>
+          <chat-message :message="m" full-size bubble>
             <template #append>
               <div class="d-flex align-center">
                 <v-tooltip v-if="(m.child_branch_ids?.length || 0) > 0" text="Switch branch from here">
                   <template #activator="{ props }">
-                    <v-btn v-bind="props" size="small" icon="$source-branch" @click="openBranches(m)"></v-btn>
+                    <v-btn v-bind="props" size="x-small" icon="$source-branch" color="secondary" variant="elevated" @click="openBranches(m)"></v-btn>
                   </template>
                 </v-tooltip>
               </div>
             </template>
           </chat-message>
-          <v-divider />
         </template>
-      </v-list>
+      </div>
 
       <v-alert v-if="!loading && visibleMessages.length === 0" type="info" variant="tonal" class="ma-4">
         No messages in this conversation yet.
       </v-alert>
-    </v-card>
+    </div>
 
     <v-dialog v-model="branchesDialog" max-width="480">
       <v-card>
@@ -137,3 +142,14 @@ watch(() => props.initialBranchId, (newId) => {
 })
 </script>
 
+
+<style scoped>
+.chat-messages-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.opacity-70 {
+  opacity: 0.7;
+}
+</style>

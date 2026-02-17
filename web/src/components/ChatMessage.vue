@@ -1,47 +1,69 @@
 <template>
-  <v-list-item :class="{ 'chat-message': true, 'clickable': clickable }" @click="handleClick">
-    <template #prepend>
-      <v-avatar size="28" color="grey-lighten-2">
-        <span class="text-caption">{{ roleInitial }}</span>
+  <div :class="{ 'chat-message-container': true, 'bubble-mode': bubble, 'user-message': message.role === 'user', 'assistant-message': message.role !== 'user', 'clickable': clickable }" @click="handleClick">
+    <div class="message-wrapper">
+      <v-avatar v-if="bubble" size="32" :color="avatarColor" class="message-avatar">
+        <v-icon v-if="message.role === 'user'" icon="$account" size="20"></v-icon>
+        <v-icon v-else icon="$robot" size="20"></v-icon>
       </v-avatar>
-    </template>
 
-    <v-list-item-title class="d-flex align-center justify-space-between">
-      <div>
-        <span class="text-medium-emphasis">{{ formattedDate }}</span>
-        <v-chip class="ml-2" size="x-small" variant="flat">{{ message.role }}</v-chip>
-        <v-chip v-if="message.model" class="ml-1" size="x-small" variant="outlined" color="secondary">{{ message.model }}</v-chip>
-        <v-chip v-if="message.prompt_tokens || message.completion_tokens" class="ml-1" size="x-small" variant="text" color="grey">
-          <v-icon start icon="$memory" size="12"></v-icon>
-          {{ message.prompt_tokens || 0 }} prompt tokens / {{ message.completion_tokens || 0 }} completion tokens
-        </v-chip>
-        <v-chip v-if="message.prompt_eval_duration || message.eval_duration" class="ml-1" size="x-small" variant="text" color="grey">
-          <v-icon start icon="$timer-outline" size="12"></v-icon>
-          {{ formattedDurations }}
-        </v-chip>
+      <div class="message-bubble-content">
+        <div v-if="!bubble" class="list-layout d-flex align-start w-100">
+          <v-avatar size="28" color="grey-lighten-2" class="mr-3 mt-1">
+            <span class="text-caption">{{ roleInitial }}</span>
+          </v-avatar>
+          <div class="flex-grow-1 min-width-0">
+            <div class="d-flex align-center justify-space-between mb-1">
+              <div>
+                <span class="text-medium-emphasis text-caption">{{ formattedDate }}</span>
+                <v-chip class="ml-2" size="x-small" variant="flat">{{ message.role }}</v-chip>
+                <v-chip v-if="message.model" class="ml-1" size="x-small" variant="outlined" color="secondary">{{ message.model }}</v-chip>
+              </div>
+            </div>
+            <div class="message-text" :class="{ 'full-size': fullSize }" v-html="renderedContent"></div>
+          </div>
+        </div>
+
+        <div v-else class="bubble-layout">
+          <div class="bubble-header d-flex align-center mb-1">
+            <span class="role-name text-caption font-weight-bold">{{ message.role }}</span>
+            <span v-if="message.model" class="model-name text-caption ml-2 opacity-70">{{ message.model }}</span>
+            <v-spacer />
+            <span class="text-caption opacity-60">{{ formattedDate }}</span>
+          </div>
+
+          <div class="bubble-body">
+            <div class="message-text" :class="{ 'full-size': fullSize }" v-html="renderedContent"></div>
+
+            <div v-if="hasMetadata" class="bubble-footer mt-2 pt-1 d-flex flex-wrap align-center">
+              <v-chip v-if="message.prompt_tokens || message.completion_tokens" class="mr-1 mb-1" size="x-small" variant="text" color="grey">
+                <v-icon start icon="$memory" size="12"></v-icon>
+                {{ message.prompt_tokens || 0 }} / {{ message.completion_tokens || 0 }} tokens
+              </v-chip>
+              <v-chip v-if="message.prompt_eval_duration || message.eval_duration" class="mr-1 mb-1" size="x-small" variant="text" color="grey">
+                <v-icon start icon="$timer-outline" size="12"></v-icon>
+                {{ formattedDurations }}
+              </v-chip>
+            </div>
+          </div>
+        </div>
+
+        <div class="copy-button-container">
+          <v-btn
+            icon="$content-copy"
+            size="x-small"
+            variant="tonal"
+            color="grey"
+            class="copy-btn"
+            @click.stop="copyToClipboard"
+            title="Copy raw message"
+          ></v-btn>
+        </div>
+        <div v-if="$slots.append" class="append-slot">
+          <slot name="append"></slot>
+        </div>
       </div>
-    </v-list-item-title>
-
-  <v-list-item-subtitle class="py-2 message-content" :class="{ 'full-size': fullSize }" style="opacity: 1">
-      <div class="message-text" v-html="renderedContent"></div>
-    </v-list-item-subtitle>
-
-    <template v-if="$slots.append" #append>
-      <slot name="append"></slot>
-    </template>
-
-    <div class="copy-button-container">
-      <v-btn
-        icon="$content-copy"
-        size="x-small"
-        variant="tonal"
-        color="grey"
-        class="copy-btn"
-        @click.stop="copyToClipboard"
-        title="Copy raw message"
-      ></v-btn>
     </div>
-  </v-list-item>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -72,6 +94,7 @@ const props = defineProps<{
   message: Message
   clickable?: boolean
   fullSize?: boolean
+  bubble?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -80,6 +103,16 @@ const emit = defineEmits<{
 
 const roleInitial = computed(() => {
   return props.message.role ? props.message.role[0].toUpperCase() : '?'
+})
+
+const avatarColor = computed(() => {
+  if (props.message.role === 'user') return 'primary'
+  if (props.message.role === 'assistant') return 'teal-lighten-1'
+  return 'grey'
+})
+
+const hasMetadata = computed(() => {
+  return props.message.prompt_tokens || props.message.completion_tokens || props.message.prompt_eval_duration || props.message.eval_duration
 })
 
 const formattedDate = computed(() => {
@@ -126,56 +159,150 @@ async function copyToClipboard() {
 </script>
 
 <style scoped>
-.message-content.full-size {
-  white-space: normal !important;
-  display: block !important;
-  -webkit-line-clamp: initial !important;
+.chat-message-container {
+  padding: 8px 16px;
+  position: relative;
+  width: 100%;
 }
+.chat-message-container.clickable {
+  cursor: pointer;
+}
+.chat-message-container.clickable:hover:not(.bubble-mode) {
+  background-color: rgba(var(--v-theme-on-surface), 0.04);
+}
+
+.message-wrapper {
+  display: flex;
+  max-width: 100%;
+}
+
+.message-bubble-content {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Bubble Mode Styles */
+.bubble-mode .message-wrapper {
+  flex-direction: row;
+}
+.bubble-mode.user-message .message-wrapper {
+  flex-direction: row-reverse;
+}
+
+.bubble-mode .message-avatar {
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+.bubble-mode.assistant-message .message-avatar {
+  margin-right: 12px;
+}
+.bubble-mode.user-message .message-avatar {
+  margin-left: 12px;
+}
+
+.bubble-mode .bubble-layout {
+  padding: 12px 16px;
+  border-radius: 16px;
+  max-width: 85%;
+  position: relative;
+  background-color: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.08);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.bubble-mode.user-message .bubble-layout {
+  margin-left: auto;
+  border-top-right-radius: 4px;
+  background-color: rgb(var(--v-theme-primary), 0.05);
+  border-color: rgb(var(--v-theme-primary), 0.2);
+}
+
+.bubble-mode.assistant-message .bubble-layout {
+  margin-right: auto;
+  border-top-left-radius: 4px;
+}
+
+.bubble-header {
+  opacity: 0.8;
+}
+
+.bubble-footer {
+  border-top: 1px dashed rgba(var(--v-theme-on-surface), 0.1);
+}
+
+.opacity-70 { opacity: 0.7; }
+.opacity-60 { opacity: 0.6; }
+
 .message-text {
   font-family: inherit;
-  opacity: 1;
+  line-height: 1.5;
+  word-break: break-word;
 }
+.message-text:not(.full-size) {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 .message-text :deep(p) {
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
 }
 .message-text :deep(p:last-child) {
   margin-bottom: 0;
 }
 .message-text :deep(pre) {
   background-color: rgb(var(--v-theme-surface-variant));
-  padding: 0.5rem;
-  border-radius: 4px;
+  padding: 0.75rem;
+  border-radius: 8px;
   overflow-x: auto;
-  margin-bottom: 1rem;
+  margin: 0.75rem 0;
 }
 .message-text :deep(code) {
   background-color: rgb(var(--v-theme-surface-variant));
-  padding: 0.1rem 0.3rem;
-  border-radius: 3px;
-  font-size: 0.9em;
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.85em;
 }
 .message-text :deep(pre code) {
   padding: 0;
   background-color: transparent;
 }
-.chat-message.clickable {
-  cursor: pointer;
-}
-.chat-message {
-  position: relative !important;
-  overflow: visible !important;
-}
+
 .copy-button-container {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 100;
+  top: 4px;
+  right: 4px;
+  z-index: 10;
 }
-.chat-message .copy-btn {
-  opacity: 0.2;
+.bubble-mode.user-message .copy-button-container {
+  right: auto;
+  left: 4px;
+}
+
+.copy-btn {
+  opacity: 0;
   transition: opacity 0.2s;
 }
-.chat-message:hover .copy-btn {
-  opacity: 1;
+.chat-message-container:hover .copy-btn {
+  opacity: 0.6;
 }
+.copy-btn:hover {
+  opacity: 1 !important;
+}
+
+.append-slot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  transform: translateY(50%);
+  z-index: 11;
+}
+.bubble-mode.user-message .append-slot {
+  right: auto;
+  left: 0;
+}
+
+.min-width-0 { min-width: 0; }
 </style>
