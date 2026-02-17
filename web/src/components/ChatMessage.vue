@@ -1,8 +1,9 @@
 <template>
-  <div :class="{ 'chat-message-container': true, 'bubble-mode': bubble, 'user-message': message.role === 'user', 'assistant-message': message.role !== 'user', 'clickable': clickable }" @click="handleClick">
+  <div :class="{ 'chat-message-container': true, 'bubble-mode': bubble, 'user-message': message.role === 'user', 'assistant-message': message.role === 'assistant', 'system-message': message.role === 'system', 'clickable': clickable }" @click="handleClick">
     <div class="message-wrapper">
       <v-avatar v-if="bubble" size="32" :color="avatarColor" class="message-avatar">
         <v-icon v-if="message.role === 'user'" icon="$account" size="20"></v-icon>
+        <v-icon v-else-if="message.role === 'system'" icon="$cog" size="20"></v-icon>
         <v-icon v-else icon="$robot" size="20"></v-icon>
       </v-avatar>
 
@@ -14,9 +15,9 @@
           <div class="flex-grow-1 min-width-0">
             <div class="d-flex align-center justify-space-between mb-1">
               <div>
-                <span class="text-medium-emphasis text-caption">{{ formattedDate }}</span>
-                <v-chip class="ml-2" size="x-small" variant="flat">{{ message.role }}</v-chip>
-                <v-chip v-if="message.model" class="ml-1" size="x-small" variant="outlined" color="secondary">{{ message.model }}</v-chip>
+                <span class="text-medium-emphasis text-caption">{{ formattedDate }} </span>
+                <v-chip class="ml-2" size="small" variant="flat">{{ message.role }}</v-chip>
+                <v-chip v-if="message.model" class="ml-1" size="small" variant="outlined" color="secondary">{{ message.model }}</v-chip>
               </div>
             </div>
             <div class="message-text" :class="{ 'full-size': fullSize }" v-html="renderedContent"></div>
@@ -25,29 +26,40 @@
 
         <div v-else class="bubble-layout">
           <div class="bubble-header d-flex align-center mb-1">
-            <span class="role-name text-caption font-weight-bold">{{ message.role }}</span>
-            <span v-if="message.model" class="model-name text-caption ml-2 opacity-70">{{ message.model }}</span>
-            <v-spacer />
-            <span class="text-caption opacity-60">{{ formattedDate }}</span>
+            <span class="text-medium-emphasis text-caption">{{ formattedDate }} </span>
+            <v-chip class="ml-2" size="small" variant="flat">{{ message.role }}</v-chip>
+            <v-chip v-if="message.model" class="ml-1" size="small" variant="outlined" color="secondary">{{ message.model }}</v-chip>
           </div>
 
           <div class="bubble-body">
             <div class="message-text" :class="{ 'full-size': fullSize }" v-html="renderedContent"></div>
 
             <div v-if="hasMetadata" class="bubble-footer mt-2 pt-1 d-flex flex-wrap align-center">
-              <v-chip v-if="message.prompt_tokens || message.completion_tokens" class="mr-1 mb-1" size="x-small" variant="text" color="grey">
+              <v-chip v-if="message.prompt_tokens || message.completion_tokens" class="mr-1 mb-1" variant="text" color="grey">
                 <v-icon start icon="$memory" size="12"></v-icon>
                 {{ message.prompt_tokens || 0 }} / {{ message.completion_tokens || 0 }} tokens
               </v-chip>
-              <v-chip v-if="message.prompt_eval_duration || message.eval_duration" class="mr-1 mb-1" size="x-small" variant="text" color="grey">
+              <v-chip v-if="message.prompt_eval_duration || message.eval_duration" class="mr-1 mb-1" variant="text" color="grey">
                 <v-icon start icon="$timer-outline" size="12"></v-icon>
                 {{ formattedDurations }}
               </v-chip>
             </div>
           </div>
+
+          <div class="copy-button-container">
+            <v-btn
+              icon="$content-copy"
+              size="x-small"
+              variant="tonal"
+              color="grey"
+              class="copy-btn"
+              @click.stop="copyToClipboard"
+              title="Copy raw message"
+            ></v-btn>
+          </div>
         </div>
 
-        <div class="copy-button-container">
+        <div v-if="!bubble" class="copy-button-container">
           <v-btn
             icon="$content-copy"
             size="x-small"
@@ -108,6 +120,7 @@ const roleInitial = computed(() => {
 const avatarColor = computed(() => {
   if (props.message.role === 'user') return 'primary'
   if (props.message.role === 'assistant') return 'teal-lighten-1'
+  if (props.message.role === 'system') return 'deep-orange-lighten-1'
   return 'grey'
 })
 
@@ -223,6 +236,16 @@ async function copyToClipboard() {
   border-top-left-radius: 4px;
 }
 
+.bubble-mode.system-message .bubble-layout {
+  margin-left: auto;
+  margin-right: auto;
+  background-color: rgb(var(--v-theme-surface-variant), 0.3);
+  border-style: dashed;
+  border-color: rgba(var(--v-theme-on-surface), 0.2);
+  width: 95%;
+  max-width: 95%;
+}
+
 .bubble-header {
   opacity: 0.8;
 }
@@ -272,13 +295,9 @@ async function copyToClipboard() {
 
 .copy-button-container {
   position: absolute;
-  top: 4px;
-  right: 4px;
+  top: 8px;
+  right: 8px;
   z-index: 10;
-}
-.bubble-mode.user-message .copy-button-container {
-  right: auto;
-  left: 4px;
 }
 
 .copy-btn {
@@ -298,10 +317,6 @@ async function copyToClipboard() {
   right: 0;
   transform: translateY(50%);
   z-index: 11;
-}
-.bubble-mode.user-message .append-slot {
-  right: auto;
-  left: 0;
 }
 
 .min-width-0 { min-width: 0; }
