@@ -1,3 +1,4 @@
+// Package storage provides a PostgreSQL-based storage implementation for conversations, branches, and messages.
 package storage
 
 import (
@@ -14,6 +15,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// PostgresStorage represents a PostgreSQL storage backend for conversations, branches, and messages.
 type PostgresStorage struct {
 	db *sql.DB
 }
@@ -21,6 +23,9 @@ type PostgresStorage struct {
 //go:embed schema.sql
 var schemaSQL string
 
+// NewPostgresStorage creates a new PostgreSQL storage instance with the given DSN.
+// It initializes the database schema if it doesn't already exist.
+// Returns a pointer to PostgresStorage and an error if initialization fails.
 func NewPostgresStorage(dsn string) (*PostgresStorage, error) {
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
@@ -35,6 +40,9 @@ func NewPostgresStorage(dsn string) (*PostgresStorage, error) {
 	return s, nil
 }
 
+// initSchema initializes the database schema if it doesn't already exist.
+// It checks for the existence of the schema_version table and creates the schema if needed.
+// Returns an error if schema initialization fails.
 func (s *PostgresStorage) initSchema(ctx context.Context) error {
 	var exists bool
 	err := s.db.QueryRowContext(ctx, "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'schema_version')").Scan(&exists)
@@ -60,6 +68,8 @@ func (s *PostgresStorage) initSchema(ctx context.Context) error {
 	return nil
 }
 
+// CreateConversation creates a new conversation with the given metadata and returns the conversation and its initial branch.
+// Returns a pointer to Conversation, a pointer to Branch, and an error.
 func (s *PostgresStorage) CreateConversation(ctx context.Context, metadata map[string]interface{}) (*Conversation, *Branch, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -100,6 +110,8 @@ func (s *PostgresStorage) CreateConversation(ctx context.Context, metadata map[s
 	return &conv, &branch, nil
 }
 
+// GetConversation retrieves a conversation by its ID.
+// Returns a pointer to Conversation and an error.
 func (s *PostgresStorage) GetConversation(ctx context.Context, id string) (*Conversation, error) {
 	var conv Conversation
 	var metadataJSON []byte
@@ -120,6 +132,8 @@ func (s *PostgresStorage) GetConversation(ctx context.Context, id string) (*Conv
 	return &conv, nil
 }
 
+// AddMessage adds a new message to a conversation, potentially forking the branch if needed.
+// Returns a pointer to Message and an error.
 func (s *PostgresStorage) AddMessage(ctx context.Context, parentMessageID string, message *Message) (*Message, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -205,6 +219,8 @@ func (s *PostgresStorage) AddMessage(ctx context.Context, parentMessageID string
 	return &msg, nil
 }
 
+// GetBranchHistory retrieves the complete history of messages for a given branch.
+// Returns a slice of Message and an error.
 func (s *PostgresStorage) GetBranchHistory(ctx context.Context, branchID string) ([]Message, error) {
 	query := `
 		WITH RECURSIVE branch_path AS (
@@ -265,6 +281,8 @@ func (s *PostgresStorage) GetBranchHistory(ctx context.Context, branchID string)
 	return history, nil
 }
 
+// FindMessageByHistory searches for a message in the database based on a history of messages.
+// Returns the message ID if found, or an empty string and an error.
 func (s *PostgresStorage) FindMessageByHistory(ctx context.Context, history []SimpleMessage) (string, error) {
 	if len(history) == 0 {
 		return "", nil
@@ -287,10 +305,12 @@ func (s *PostgresStorage) FindMessageByHistory(ctx context.Context, history []Si
 	return "", nil
 }
 
+// ListConversations retrieves a paginated list of conversations with their first messages.
+// Returns a slice of ConversationOverview and an error.
 func (s *PostgresStorage) ListConversations(ctx context.Context, p Pagination) ([]ConversationOverview, error) {
 	query := `
 		SELECT c.id, c.created_at, c.metadata,
-		       m.id, m.conversation_id, m.branch_id, m.role, m.content, m.model, m.sequence_number, m.created_at, m.upstream_status_code, m.upstream_error, m.prompt_tokens, m.completion_tokens, m.parent_message_id
+		   		m.id, m.conversation_id, m.branch_id, m.role, m.content, m.model, m.sequence_number, m.created_at, m.upstream_status_code, m.upstream_error, m.prompt_tokens, m.completion_tokens, m.parent_message_id
 		FROM conversations c
 		LEFT JOIN LATERAL (
 			SELECT * FROM messages m 
@@ -364,6 +384,8 @@ func (s *PostgresStorage) ListConversations(ctx context.Context, p Pagination) (
 	return overviews, nil
 }
 
+// SearchMessages searches for messages containing the specified query string.
+// Returns a slice of Message and an error.
 func (s *PostgresStorage) SearchMessages(ctx context.Context, query string, p Pagination) ([]Message, error) {
 	sqlQuery := `
 		SELECT id, conversation_id, branch_id, role, content, model, sequence_number, created_at, upstream_status_code, upstream_error, prompt_tokens, completion_tokens, prompt_eval_duration, eval_duration, parent_message_id
@@ -383,6 +405,8 @@ func (s *PostgresStorage) SearchMessages(ctx context.Context, query string, p Pa
 	return s.scanMessages(rows)
 }
 
+// GetConversationMessages retrieves all messages for a given conversation ID.
+// Returns a slice of Message and an error.
 func (s *PostgresStorage) GetConversationMessages(ctx context.Context, conversationID string) ([]Message, error) {
 	query := `
 		SELECT id, conversation_id, branch_id, role, content, model, sequence_number, created_at, upstream_status_code, upstream_error, prompt_tokens, completion_tokens, prompt_eval_duration, eval_duration, parent_message_id
@@ -401,7 +425,8 @@ func (s *PostgresStorage) GetConversationMessages(ctx context.Context, conversat
 	return s.scanMessages(rows)
 }
 
-//goland:noinspection GoDirectComparisonOfErrors
+// GetBranch retrieves a branch by its ID.
+// Returns a pointer to Branch and an error.
 func (s *PostgresStorage) GetBranch(ctx context.Context, branchID string) (*Branch, error) {
 	var b Branch
 	var parentBranchID, parentMessageID sql.NullString
@@ -428,6 +453,8 @@ func (s *PostgresStorage) GetBranch(ctx context.Context, branchID string) (*Bran
 	return &b, nil
 }
 
+// scanMessages scans a sql.Rows object and returns a slice of Message.
+// Returns a slice of Message and an error.
 func (s *PostgresStorage) scanMessages(rows *sql.Rows) ([]Message, error) {
 	var messages []Message
 	for rows.Next() {
@@ -470,6 +497,7 @@ func (s *PostgresStorage) scanMessages(rows *sql.Rows) ([]Message, error) {
 	return messages, nil
 }
 
+// optional returns a pointer to the given string if it's not empty, otherwise returns nil.
 func optional(s string) *string {
 	if s == "" {
 		return nil
@@ -477,6 +505,8 @@ func optional(s string) *string {
 	return &s
 }
 
+// computeHistoryHash computes a hash for a sequence of messages.
+// Returns the computed hash as a string.
 func computeHistoryHash(history []SimpleMessage) string {
 	currentHash := ""
 	for _, m := range history {
@@ -485,6 +515,8 @@ func computeHistoryHash(history []SimpleMessage) string {
 	return currentHash
 }
 
+// computeHash computes a SHA256 hash of the previous hash, role, and content.
+// Returns the computed hash as a hex-encoded string.
 func computeHash(prevHash, role, content string) string {
 	h := sha256.New()
 	h.Write([]byte(prevHash))
