@@ -29,6 +29,18 @@
     <template v-if="$slots.append" #append>
       <slot name="append"></slot>
     </template>
+
+    <div class="copy-button-container">
+      <v-btn
+        icon="mdi-content-copy"
+        size="x-small"
+        variant="tonal"
+        color="grey"
+        class="copy-btn"
+        @click.stop="copyToClipboard"
+        title="Copy raw message"
+      ></v-btn>
+    </div>
   </v-list-item>
 </template>
 
@@ -88,6 +100,14 @@ function handleClick() {
     emit('click', props.message)
   }
 }
+
+async function copyToClipboard() {
+  try {
+    await navigator.clipboard.writeText(props.message.content || '')
+  } catch (err) {
+    console.error('Failed to copy text: ', err)
+  }
+}
 </script>
 
 <style scoped>
@@ -125,5 +145,22 @@ function handleClick() {
 }
 .chat-message.clickable {
   cursor: pointer;
+}
+.chat-message {
+  position: relative !important;
+  overflow: visible !important;
+}
+.copy-button-container {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 100;
+}
+.chat-message .copy-btn {
+  opacity: 0.2;
+  transition: opacity 0.2s;
+}
+.chat-message:hover .copy-btn {
+  opacity: 1;
 }
 </style>
