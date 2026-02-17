@@ -3,7 +3,7 @@
     <v-text-field
       v-model="search"
       label="Search all messages"
-      prepend-inner-icon="mdi-magnify"
+      prepend-inner-icon="$magnify"
       clearable
       class="mb-4"
       :loading="loading"

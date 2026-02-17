@@ -6,7 +6,7 @@ import App from './App.vue'
 import 'vuetify/styles'
 import { createVuetify } from 'vuetify'
 import { aliases, mdi } from 'vuetify/iconsets/mdi-svg'
-import { mdiMagnify, mdiMessageTextOutline, mdiArrowLeft, mdiHistory, mdiAccount, mdiRobot, mdiSourceBranch } from '@mdi/js'
+import { mdiMagnify, mdiMessageTextOutline, mdiArrowLeft, mdiHistory, mdiAccount, mdiRobot, mdiSourceBranch, mdiThemeLightDark, mdiMemory, mdiTimerOutline, mdiContentCopy } from '@mdi/js'
 
 import Conversations from './views/Conversations.vue'
 import ConversationDetail from './views/ConversationDetail.vue'
@@ -23,6 +23,10 @@ const vuetify = createVuetify({
       account: mdiAccount,
       robot: mdiRobot,
       'source-branch': mdiSourceBranch,
+      'theme-light-dark': mdiThemeLightDark,
+      'memory': mdiMemory,
+      'timer-outline': mdiTimerOutline,
+      'content-copy': mdiContentCopy,
     },
     sets: { mdi },
   },

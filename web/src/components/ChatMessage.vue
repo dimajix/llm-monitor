@@ -12,11 +12,11 @@
         <v-chip class="ml-2" size="x-small" variant="flat">{{ message.role }}</v-chip>
         <v-chip v-if="message.model" class="ml-1" size="x-small" variant="outlined" color="secondary">{{ message.model }}</v-chip>
         <v-chip v-if="message.prompt_tokens || message.completion_tokens" class="ml-1" size="x-small" variant="text" color="grey">
-          <v-icon start icon="mdi-memory" size="12"></v-icon>
+          <v-icon start icon="$memory" size="12"></v-icon>
           {{ message.prompt_tokens || 0 }} prompt tokens / {{ message.completion_tokens || 0 }} completion tokens
         </v-chip>
         <v-chip v-if="message.prompt_eval_duration || message.eval_duration" class="ml-1" size="x-small" variant="text" color="grey">
-          <v-icon start icon="mdi-timer-outline" size="12"></v-icon>
+          <v-icon start icon="$timer-outline" size="12"></v-icon>
           {{ formattedDurations }}
         </v-chip>
       </div>
@@ -32,7 +32,7 @@
 
     <div class="copy-button-container">
       <v-btn
-        icon="mdi-content-copy"
+        icon="$content-copy"
         size="x-small"
         variant="tonal"
         color="grey"
@@ -127,14 +127,14 @@ async function copyToClipboard() {
   margin-bottom: 0;
 }
 .message-text :deep(pre) {
-  background-color: #f5f5f5;
+  background-color: rgb(var(--v-theme-surface-variant));
   padding: 0.5rem;
   border-radius: 4px;
   overflow-x: auto;
   margin-bottom: 1rem;
 }
 .message-text :deep(code) {
-  background-color: #f5f5f5;
+  background-color: rgb(var(--v-theme-surface-variant));
   padding: 0.1rem 0.3rem;
   border-radius: 3px;
   font-size: 0.9em;

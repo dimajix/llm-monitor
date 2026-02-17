@@ -1,6 +1,6 @@
 <template>
   <div>
-    <v-btn variant="text" prepend-icon="mdi-arrow-left" @click="$router.back()">Back</v-btn>
+    <v-btn variant="text" prepend-icon="$arrow-left" @click="$router.back()">Back</v-btn>
 
     <v-card class="mt-2" :loading="loading">
       <v-card-title>Conversation {{ id }}</v-card-title>
@@ -14,7 +14,7 @@
               <div class="d-flex align-center">
                 <v-tooltip v-if="(m.child_branch_ids?.length || 0) > 0" text="Switch branch from here">
                   <template #activator="{ props }">
-                    <v-btn v-bind="props" size="small" icon="mdi-source-branch" @click="openBranches(m)"></v-btn>
+                    <v-btn v-bind="props" size="small" icon="$source-branch" @click="openBranches(m)"></v-btn>
                   </template>
                 </v-tooltip>
               </div>
