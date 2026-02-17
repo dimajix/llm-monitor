@@ -90,14 +90,14 @@ storage:
 
 ### Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
+| Variable       | Description                           | Default                  |
+|----------------|---------------------------------------|--------------------------|
 | `UPSTREAM_URL` | The URL of the LLM server to proxy to | `http://localhost:11434` |
-| `DB_USER` | PostgreSQL user | `user` |
-| `DB_PASSWORD` | PostgreSQL password | `password` |
-| `DB_HOST` | PostgreSQL host | `localhost` |
-| `DB_PORT` | PostgreSQL port | `5432` |
-| `DB_NAME` | PostgreSQL database name | `llm_monitor` |
+| `DB_USER`      | PostgreSQL user                       | `user`                   |
+| `DB_PASSWORD`  | PostgreSQL password                   | `password`               |
+| `DB_HOST`      | PostgreSQL host                       | `localhost`              |
+| `DB_PORT`      | PostgreSQL port                       | `5432`                   |
+| `DB_NAME`      | PostgreSQL database name              | `llm_monitor`            |
 
 ## Interceptors
 

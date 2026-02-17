@@ -65,7 +65,9 @@ func (s *PostgresStorage) CreateConversation(ctx context.Context, metadata map[s
 	if err != nil {
 		return nil, nil, err
 	}
-	defer tx.Rollback()
+	defer func(tx *sql.Tx) {
+		_ = tx.Rollback()
+	}(tx)
 
 	metadataJSON, err := json.Marshal(metadata)
 	if err != nil {
@@ -123,7 +125,9 @@ func (s *PostgresStorage) AddMessage(ctx context.Context, parentMessageID string
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
+	defer func(tx *sql.Tx) {
+		_ = tx.Rollback()
+	}(tx)
 
 	var branchID string
 	var lastHash string
@@ -222,7 +226,9 @@ func (s *PostgresStorage) GetBranchHistory(ctx context.Context, branchID string)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		_ = rows.Close()
+	}(rows)
 
 	var history []Message
 	for rows.Next() {
@@ -274,7 +280,8 @@ func (s *PostgresStorage) FindMessageByHistory(ctx context.Context, history []Si
 	if err == nil {
 		return mID, nil
 	}
-	if err != sql.ErrNoRows {
+	if //goland:noinspection GoDirectComparisonOfErrors
+	err != sql.ErrNoRows {
 		return "", err
 	}
 	return "", nil
@@ -297,7 +304,9 @@ func (s *PostgresStorage) ListConversations(ctx context.Context, p Pagination) (
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		_ = rows.Close()
+	}(rows)
 
 	var overviews []ConversationOverview
 	for rows.Next() {
@@ -367,7 +376,9 @@ func (s *PostgresStorage) SearchMessages(ctx context.Context, query string, p Pa
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		_ = rows.Close()
+	}(rows)
 
 	return s.scanMessages(rows)
 }
@@ -383,11 +394,14 @@ func (s *PostgresStorage) GetConversationMessages(ctx context.Context, conversat
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		_ = rows.Close()
+	}(rows)
 
 	return s.scanMessages(rows)
 }
 
+//goland:noinspection GoDirectComparisonOfErrors
 func (s *PostgresStorage) GetBranch(ctx context.Context, branchID string) (*Branch, error) {
 	var b Branch
 	var parentBranchID, parentMessageID sql.NullString
@@ -396,7 +410,8 @@ func (s *PostgresStorage) GetBranch(ctx context.Context, branchID string) (*Bran
 		branchID,
 	).Scan(&b.ID, &b.ConversationID, &parentBranchID, &parentMessageID, &b.CreatedAt)
 
-	if err == sql.ErrNoRows {
+	if //goland:noinspection GoDirectComparisonOfErrors
+	err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {

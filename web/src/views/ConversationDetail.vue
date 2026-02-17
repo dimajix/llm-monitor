@@ -56,7 +56,6 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
 import { getConversationMessages, getBranchHistory, type Message } from '../services/api'
 import ChatMessage from '../components/ChatMessage.vue'
 
@@ -110,6 +109,11 @@ const visibleMessages = computed(() => {
 function openBranches(m: Message) {
   selectedMessage.value = m
   branchesDialog.value = true
+}
+function formatDate(dt:number | string | Date) : string|null {
+  if (!dt) return ''
+  const d = new Date(dt)
+  return d.toLocaleString()
 }
 
 async function switchBranch(branchId: string) {

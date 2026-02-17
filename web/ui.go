@@ -37,7 +37,7 @@ func NewUIHandler() http.Handler {
 		// Check if the file exists in the embedded FS
 		f, err := distFS.Open(strings.TrimPrefix(upath, "/"))
 		if err == nil {
-			f.Close()
+			_ = f.Close()
 			fileServer.ServeHTTP(w, r)
 			return
 		}

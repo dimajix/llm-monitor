@@ -11,19 +11,19 @@ type MockInterceptor struct {
 }
 
 func (m *MockInterceptor) CreateState() State { return &EmptyState{} }
-func (m *MockInterceptor) RequestInterceptor(req *http.Request, state State) error {
+func (m *MockInterceptor) RequestInterceptor(_ *http.Request, _ State) error {
 	m.called = true
 	return nil
 }
-func (m *MockInterceptor) ResponseInterceptor(resp *http.Response, state State) error { return nil }
-func (m *MockInterceptor) ContentInterceptor(content []byte, state State) ([]byte, error) {
+func (m *MockInterceptor) ResponseInterceptor(_ *http.Response, _ State) error { return nil }
+func (m *MockInterceptor) ContentInterceptor(content []byte, _ State) ([]byte, error) {
 	return content, nil
 }
-func (m *MockInterceptor) ChunkInterceptor(chunk []byte, state State) ([]byte, error) {
+func (m *MockInterceptor) ChunkInterceptor(chunk []byte, _ State) ([]byte, error) {
 	return chunk, nil
 }
-func (m *MockInterceptor) OnComplete(state State)         {}
-func (m *MockInterceptor) OnError(state State, err error) {}
+func (m *MockInterceptor) OnComplete(_ State)       {}
+func (m *MockInterceptor) OnError(_ State, _ error) {}
 
 func TestManager_GetInterceptor(t *testing.T) {
 	m := NewInterceptorManager()

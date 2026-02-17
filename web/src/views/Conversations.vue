@@ -129,7 +129,4 @@ watch(search, () => {
 </script>
 
 <style scoped>
-.conversation-item {
-  cursor: pointer;
-}
 </style>
