@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"llm-monitor/internal/config"
 	"time"
 )
 
@@ -90,4 +91,12 @@ type Storage interface {
 
 	// GetBranch retrieves a branch by ID.
 	GetBranch(ctx context.Context, branchID string) (*Branch, error)
+}
+
+// CreateStorage creates a storage instance based on configuration
+func CreateStorage(cfg config.Storage) (Storage, error) {
+	if cfg.Type == "postgres" && cfg.Postgres != nil {
+		return NewPostgresStorage(cfg.Postgres.DSN)
+	}
+	return nil, nil
 }

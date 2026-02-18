@@ -29,15 +29,7 @@ func main() {
 
 	internal.InitLogging(cfg.Logging)
 
-	if cfg.Storage.Type != "postgres" {
-		logrus.Fatal("Only postgres storage is supported for the API")
-	}
-
-	if cfg.Storage.Postgres == nil || cfg.Storage.Postgres.DSN == "" {
-		logrus.Fatal("Postgres DSN is not configured")
-	}
-
-	store, err := storage.NewPostgresStorage(cfg.Storage.Postgres.DSN)
+	store, err := storage.CreateStorage(cfg.Storage)
 	if err != nil {
 		logrus.WithError(err).Fatal("Failed to connect to storage")
 	}

@@ -33,7 +33,7 @@ func CreateServer(cfg config.Config) *http.Server {
 	}
 
 	// Initialize storage
-	store, err := CreateStorage(cfg.Storage)
+	store, err := storage.CreateStorage(cfg.Storage)
 	if err != nil {
 		logrus.WithError(err).Fatal("Failed to initialize storage")
 	}
@@ -101,12 +101,4 @@ func CreateInterceptor(name string, store storage.Storage, timeout time.Duration
 	default:
 		return nil, fmt.Errorf("invalid interceptor type: %s", name)
 	}
-}
-
-// CreateStorage creates a storage instance based on configuration
-func CreateStorage(cfg config.Storage) (storage.Storage, error) {
-	if cfg.Type == "postgres" && cfg.Postgres != nil {
-		return storage.NewPostgresStorage(cfg.Postgres.DSN)
-	}
-	return nil, nil
 }
