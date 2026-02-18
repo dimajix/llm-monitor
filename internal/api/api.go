@@ -21,8 +21,8 @@ func NewAPIHandler(s storage.Storage) http.Handler {
 	// Define routes with method and path parameters (Go 1.22+ style)
 	mux.HandleFunc("GET /api/v1/conversations", h.listConversations)
 	mux.HandleFunc("GET /api/v1/conversations/{id}", h.getConversationMessages)
-	mux.HandleFunc("GET /api/v1/search", h.handleSearch)
-	mux.HandleFunc("GET /api/v1/branches/{id}", h.handleBranch)
+	mux.HandleFunc("GET /api/v1/search", h.searchMessages)
+	mux.HandleFunc("GET /api/v1/branches/{id}", h.getBranchMessages)
 
 	// Serve static UI assets
 	uiHandler := web.NewUIHandler()
@@ -63,6 +63,17 @@ func (h *APIHandler) getConversationMessages(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	conv, err := h.storage.GetConversation(ctx, id)
+	if err != nil {
+		logrus.WithError(err).Errorf("Failed to check conversation %s", id)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	if conv == nil {
+		http.NotFound(w, r)
+		return
+	}
+
 	messages, err := h.storage.GetConversationMessages(ctx, id)
 	if err != nil {
 		logrus.WithError(err).Errorf("Failed to get messages for conversation %s", id)
@@ -70,23 +81,18 @@ func (h *APIHandler) getConversationMessages(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if len(messages) == 0 {
-		// Check if conversation exists
-		conv, err := h.storage.GetConversation(ctx, id)
-		if err != nil {
-			logrus.WithError(err).Errorf("Failed to check conversation %s", id)
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-			return
-		}
-		if conv == nil {
-			http.NotFound(w, r)
-			return
-		}
+	result := struct {
+		Conversation *storage.Conversation `json:"conversation"`
+		Messages     []storage.Message     `json:"messages"`
+	}{
+		Conversation: conv,
+		Messages:     messages,
 	}
-	respondJSON(w, messages)
+
+	respondJSON(w, result)
 }
 
-func (h *APIHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
+func (h *APIHandler) searchMessages(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	query := r.URL.Query().Get("q")
 	if query == "" {
@@ -100,10 +106,11 @@ func (h *APIHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+
 	respondJSON(w, messages)
 }
 
-func (h *APIHandler) handleBranch(w http.ResponseWriter, r *http.Request) {
+func (h *APIHandler) getBranchMessages(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	branchID := r.PathValue("id")
 	if branchID == "" {

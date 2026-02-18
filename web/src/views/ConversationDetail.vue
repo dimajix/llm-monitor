@@ -81,10 +81,10 @@ async function load() {
   loading.value = true
   try {
     const data = await getConversationMessages(props.id)
-    allMessages.value = data
+    allMessages.value = data.messages
     // Pick main branch as the one with most messages
     const counts = new Map<string, number>()
-    for (const m of data) counts.set(m.branch_id, (counts.get(m.branch_id) || 0) + 1)
+    for (const m of data.messages) counts.set(m.branch_id, (counts.get(m.branch_id) || 0) + 1)
     let max = 0
     let maxId: string | null = null
     counts.forEach((v, k) => {

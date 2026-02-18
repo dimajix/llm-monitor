@@ -9,6 +9,13 @@ export type ConversationOverview = {
   first_message?: Message
 }
 
+export type ConversationMessages = {
+    id: string
+    created_at: string
+    metadata?: Record<string, any>
+    messages: Message[]
+}
+
 export type Message = {
   id: string
   conversation_id: string
@@ -36,7 +43,7 @@ export async function listConversations(limit = 20, offset = 0) {
 }
 
 export async function getConversationMessages(id: string) {
-  const { data } = await axios.get<Message[]>(`${apiBase}/api/v1/conversations/${id}`)
+  const { data } = await axios.get<ConversationMessages>(`${apiBase}/api/v1/conversations/${id}`)
   return data
 }
 
