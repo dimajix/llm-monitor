@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strconv"
 
+	"time"
+
 	"github.com/sirupsen/logrus"
 )
 
@@ -28,8 +30,10 @@ func NewAPIHandler(s storage.Storage) http.Handler {
 	uiHandler := web.NewUIHandler()
 	mux.Handle("/", uiHandler)
 
-	// Wrap mux with CORS middleware
+	// Wrap mux with CORS and Logging middleware
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
@@ -39,8 +43,27 @@ func NewAPIHandler(s storage.Storage) http.Handler {
 			return
 		}
 
-		mux.ServeHTTP(w, r)
+		ww := &responseWriter{ResponseWriter: w, status: http.StatusOK}
+		mux.ServeHTTP(ww, r)
+
+		logrus.WithFields(logrus.Fields{
+			"method":   r.Method,
+			"path":     r.URL.Path,
+			"status":   ww.status,
+			"duration": time.Since(start),
+			"remote":   r.RemoteAddr,
+		}).Info("HTTP request")
 	})
+}
+
+type responseWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.status = code
+	rw.ResponseWriter.WriteHeader(code)
 }
 
 func (h *APIHandler) listConversations(w http.ResponseWriter, r *http.Request) {
