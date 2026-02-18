@@ -8,6 +8,7 @@ import (
 	_ "embed"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -231,7 +232,7 @@ func (s *PostgresStorage) GetBranchHistory(ctx context.Context, branchID string)
 			FROM branches b
 			JOIN branch_path bp ON b.id = bp.parent_branch_id
 		)
-		SELECT m.id, m.conversation_id, m.branch_id, m.role, m.content, m.model, m.sequence_number, m.cumulative_hash, m.created_at, m.upstream_status_code, m.upstream_error, m.prompt_tokens, m.completion_tokens, m.prompt_eval_duration, m.eval_duration, m.parent_message_id
+		SELECT m.id, m.conversation_id, m.branch_id, m.role, m.content, m.model, m.sequence_number, m.created_at, m.upstream_status_code, m.upstream_error, m.prompt_tokens, m.completion_tokens, m.prompt_eval_duration, m.eval_duration, m.parent_message_id
 		FROM messages m
 		JOIN branch_path bp ON m.branch_id = bp.id
 		WHERE (bp.level = 0) 
@@ -246,39 +247,7 @@ func (s *PostgresStorage) GetBranchHistory(ctx context.Context, branchID string)
 		_ = rows.Close()
 	}(rows)
 
-	var history []Message
-	for rows.Next() {
-		var m Message
-		var statusCode sql.NullInt32
-		var errorText sql.NullString
-		var parentMsgIDVal sql.NullString
-		var cumulativeHash string
-		var modelVal sql.NullString
-		var promptTokens, completionTokens sql.NullInt32
-		if err := rows.Scan(&m.ID, &m.ConversationID, &m.BranchID, &m.Role, &m.Content, &modelVal, &m.SequenceNumber, &cumulativeHash, &m.CreatedAt, &statusCode, &errorText, &promptTokens, &completionTokens, &parentMsgIDVal); err != nil {
-			return nil, err
-		}
-		if modelVal.Valid {
-			m.Model = modelVal.String
-		}
-		if statusCode.Valid {
-			m.UpstreamStatusCode = int(statusCode.Int32)
-		}
-		if errorText.Valid {
-			m.UpstreamError = &errorText.String
-		}
-		if promptTokens.Valid {
-			m.PromptTokens = int(promptTokens.Int32)
-		}
-		if completionTokens.Valid {
-			m.CompletionTokens = int(completionTokens.Int32)
-		}
-		if parentMsgIDVal.Valid {
-			m.ParentMessageID = &parentMsgIDVal.String
-		}
-		history = append(history, m)
-	}
-	return history, nil
+	return s.scanMessages(rows)
 }
 
 // FindMessageByHistory searches for a message in the database based on a history of messages.
@@ -298,8 +267,7 @@ func (s *PostgresStorage) FindMessageByHistory(ctx context.Context, history []Si
 	if err == nil {
 		return mID, nil
 	}
-	if //goland:noinspection GoDirectComparisonOfErrors
-	err != sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return "", err
 	}
 	return "", nil
@@ -310,7 +278,7 @@ func (s *PostgresStorage) FindMessageByHistory(ctx context.Context, history []Si
 func (s *PostgresStorage) ListConversations(ctx context.Context, p Pagination) ([]ConversationOverview, error) {
 	query := `
 		SELECT c.id, c.created_at, c.metadata,
-		   		m.id, m.conversation_id, m.branch_id, m.role, m.content, m.model, m.sequence_number, m.created_at, m.upstream_status_code, m.upstream_error, m.prompt_tokens, m.completion_tokens, m.parent_message_id
+		   		m.id, m.conversation_id, m.branch_id, m.role, m.content, m.model, m.sequence_number, m.created_at, m.upstream_status_code, m.upstream_error, m.prompt_tokens, m.completion_tokens, m.prompt_eval_duration, m.eval_duration, m.parent_message_id
 		FROM conversations c
 		LEFT JOIN LATERAL (
 			SELECT * FROM messages m 
@@ -337,10 +305,11 @@ func (s *PostgresStorage) ListConversations(ctx context.Context, p Pagination) (
 		var mSeq sql.NullInt32
 		var mCreatedAt sql.NullTime
 		var mStatus, mPromptTokens, mCompletionTokens sql.NullInt32
+		var mPromptEvalDuration, mEvalDuration sql.NullInt64
 
 		err := rows.Scan(
 			&o.ID, &o.CreatedAt, &metadata,
-			&mID, &mConvID, &mBranchID, &mRole, &mContent, &mModel, &mSeq, &mCreatedAt, &mStatus, &mError, &mPromptTokens, &mCompletionTokens, &mParentID,
+			&mID, &mConvID, &mBranchID, &mRole, &mContent, &mModel, &mSeq, &mCreatedAt, &mStatus, &mError, &mPromptTokens, &mCompletionTokens, &mPromptEvalDuration, &mEvalDuration, &mParentID,
 		)
 		if err != nil {
 			return nil, err
@@ -372,6 +341,12 @@ func (s *PostgresStorage) ListConversations(ctx context.Context, p Pagination) (
 			}
 			if mCompletionTokens.Valid {
 				m.CompletionTokens = int(mCompletionTokens.Int32)
+			}
+			if mPromptEvalDuration.Valid {
+				m.PromptEvalDuration = time.Duration(mPromptEvalDuration.Int64)
+			}
+			if mEvalDuration.Valid {
+				m.EvalDuration = time.Duration(mEvalDuration.Int64)
 			}
 			if mParentID.Valid {
 				m.ParentMessageID = &mParentID.String
@@ -458,43 +433,56 @@ func (s *PostgresStorage) GetBranch(ctx context.Context, branchID string) (*Bran
 func (s *PostgresStorage) scanMessages(rows *sql.Rows) ([]Message, error) {
 	var messages []Message
 	for rows.Next() {
-		var m Message
-		var modelVal, errorText, parentMsgIDVal sql.NullString
-		var statusCode, promptTokens, completionTokens sql.NullInt32
-		var promptEvalDuration, evalDuration sql.NullInt64
-		err := rows.Scan(
-			&m.ID, &m.ConversationID, &m.BranchID, &m.Role, &m.Content, &modelVal, &m.SequenceNumber, &m.CreatedAt, &statusCode, &errorText, &promptTokens, &completionTokens, &promptEvalDuration, &evalDuration, &parentMsgIDVal,
-		)
+		m, err := s.scanMessage(rows)
 		if err != nil {
 			return nil, err
 		}
-		if modelVal.Valid {
-			m.Model = modelVal.String
+		if m != nil {
+			messages = append(messages, *m)
 		}
-		if statusCode.Valid {
-			m.UpstreamStatusCode = int(statusCode.Int32)
-		}
-		if errorText.Valid {
-			m.UpstreamError = &errorText.String
-		}
-		if promptTokens.Valid {
-			m.PromptTokens = int(promptTokens.Int32)
-		}
-		if completionTokens.Valid {
-			m.CompletionTokens = int(completionTokens.Int32)
-		}
-		if promptEvalDuration.Valid {
-			m.PromptEvalDuration = time.Duration(promptEvalDuration.Int64)
-		}
-		if evalDuration.Valid {
-			m.EvalDuration = time.Duration(evalDuration.Int64)
-		}
-		if parentMsgIDVal.Valid {
-			m.ParentMessageID = &parentMsgIDVal.String
-		}
-		messages = append(messages, m)
 	}
 	return messages, nil
+}
+
+func (s *PostgresStorage) scanMessage(rows *sql.Rows) (*Message, error) {
+	var m Message
+	var modelVal, errorText, parentMsgIDVal sql.NullString
+	var statusCode, promptTokens, completionTokens sql.NullInt32
+	var promptEvalDuration, evalDuration sql.NullInt64
+	err := rows.Scan(
+		&m.ID, &m.ConversationID, &m.BranchID, &m.Role, &m.Content, &modelVal, &m.SequenceNumber, &m.CreatedAt, &statusCode, &errorText, &promptTokens, &completionTokens, &promptEvalDuration, &evalDuration, &parentMsgIDVal,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if modelVal.Valid {
+		m.Model = modelVal.String
+	}
+	if statusCode.Valid {
+		m.UpstreamStatusCode = int(statusCode.Int32)
+	}
+	if errorText.Valid {
+		m.UpstreamError = &errorText.String
+	}
+	if promptTokens.Valid {
+		m.PromptTokens = int(promptTokens.Int32)
+	}
+	if completionTokens.Valid {
+		m.CompletionTokens = int(completionTokens.Int32)
+	}
+	if promptEvalDuration.Valid {
+		m.PromptEvalDuration = time.Duration(promptEvalDuration.Int64)
+	}
+	if evalDuration.Valid {
+		m.EvalDuration = time.Duration(evalDuration.Int64)
+	}
+	if parentMsgIDVal.Valid {
+		m.ParentMessageID = &parentMsgIDVal.String
+	}
+	return &m, nil
 }
 
 // optional returns a pointer to the given string if it's not empty, otherwise returns nil.
