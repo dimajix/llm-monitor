@@ -5,6 +5,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE conversations (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    request_type VARCHAR(50) NOT NULL,
     metadata JSONB
 );
 
@@ -61,4 +62,4 @@ CREATE TABLE IF NOT EXISTS schema_version (
     applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-INSERT INTO schema_version (version) VALUES (5) ON CONFLICT (version) DO UPDATE SET version = 5;
+INSERT INTO schema_version (version) VALUES (6) ON CONFLICT (version) DO UPDATE SET version = 6;

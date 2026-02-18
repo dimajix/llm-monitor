@@ -5,15 +5,19 @@ const apiBase = import.meta.env.VITE_API_BASE || '' // empty uses same origin or
 export type ConversationOverview = {
   id: string
   created_at: string
+  request_type: string
   metadata?: Record<string, any>
   first_message?: Message
 }
 
 export type ConversationMessages = {
+  conversation: {
     id: string
     created_at: string
+    request_type: string
     metadata?: Record<string, any>
-    messages: Message[]
+  }
+  messages: Message[]
 }
 
 export type Message = {

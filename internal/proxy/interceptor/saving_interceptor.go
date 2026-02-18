@@ -16,7 +16,7 @@ type SavingInterceptor struct {
 }
 
 // SaveToStorage saves the conversation history and assistant message to storage
-func (si *SavingInterceptor) SaveToStorage(ctx context.Context, history []storage.SimpleMessage, assistantMsg storage.SimpleMessage, statusCode int) {
+func (si *SavingInterceptor) SaveToStorage(ctx context.Context, history []storage.SimpleMessage, assistantMsg storage.SimpleMessage, statusCode int, requestType string) {
 	if si.Storage == nil {
 		return
 	}
@@ -27,7 +27,7 @@ func (si *SavingInterceptor) SaveToStorage(ctx context.Context, history []storag
 
 	var curHistory = history
 	for len(curHistory) > 0 {
-		pid, err := si.Storage.FindMessageByHistory(ctx, curHistory)
+		pid, err := si.Storage.FindMessageByHistory(ctx, curHistory, requestType)
 		if err != nil {
 			logrus.WithError(err).Warnf("[%s] Could not find message by history", si.Name)
 			return
@@ -53,7 +53,7 @@ func (si *SavingInterceptor) SaveToStorage(ctx context.Context, history []storag
 		} else if assistantMsg.Model != "" {
 			model = assistantMsg.Model
 		}
-		_, branch, err := si.Storage.CreateConversation(ctx, map[string]any{"model": model})
+		_, branch, err := si.Storage.CreateConversation(ctx, map[string]any{"model": model}, requestType)
 		if err != nil {
 			logrus.WithError(err).Warnf("[%s] Could not create conversation in storage", si.Name)
 			return

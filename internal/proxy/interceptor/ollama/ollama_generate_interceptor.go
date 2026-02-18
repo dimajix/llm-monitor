@@ -34,12 +34,12 @@ type generateResponse struct {
 	Done               bool   `json:"done"`
 	DoneReason         string `json:"done_reason,omitempty"`
 	Context            []int  `json:"context,omitempty"`
-	TotalDuration      int64  `json:"total_duration"`
-	LoadDuration       int64  `json:"load_duration"`
-	PromptEvalCount    int    `json:"prompt_eval_count"`
-	PromptEvalDuration int64  `json:"prompt_eval_duration"`
-	EvalCount          int    `json:"eval_count"`
-	EvalDuration       int64  `json:"eval_duration"`
+	TotalDuration      int64  `json:"total_duration,omitempty"`
+	LoadDuration       int64  `json:"load_duration,omitempty"`
+	PromptEvalCount    int    `json:"prompt_eval_count,omitempty"`
+	PromptEvalDuration int64  `json:"prompt_eval_duration,omitempty"`
+	EvalCount          int    `json:"eval_count,omitempty"`
+	EvalDuration       int64  `json:"eval_duration,omitempty"`
 }
 
 // generateState holds the state for an Ollama generate request
@@ -169,6 +169,6 @@ func (oi *GenerateInterceptor) saveLog(ollamaState *generateState) {
 			EvalDuration:       time.Duration(ollamaState.response.EvalDuration),
 		}
 
-		oi.SaveToStorage(ctx, history, assistantMsg, ollamaState.statusCode)
+		oi.SaveToStorage(ctx, history, assistantMsg, ollamaState.statusCode, "generate")
 	}
 }

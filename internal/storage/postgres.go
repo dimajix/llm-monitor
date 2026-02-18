@@ -71,7 +71,7 @@ func (s *PostgresStorage) initSchema(ctx context.Context) error {
 
 // CreateConversation creates a new conversation with the given metadata and returns the conversation and its initial branch.
 // Returns a pointer to Conversation, a pointer to Branch, and an error.
-func (s *PostgresStorage) CreateConversation(ctx context.Context, metadata map[string]interface{}) (*Conversation, *Branch, error) {
+func (s *PostgresStorage) CreateConversation(ctx context.Context, metadata map[string]interface{}, requestType string) (*Conversation, *Branch, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, nil, err
@@ -87,13 +87,14 @@ func (s *PostgresStorage) CreateConversation(ctx context.Context, metadata map[s
 
 	var conv Conversation
 	err = tx.QueryRowContext(ctx,
-		"INSERT INTO conversations (metadata) VALUES ($1) RETURNING id, created_at",
-		metadataJSON,
-	).Scan(&conv.ID, &conv.CreatedAt)
+		"INSERT INTO conversations (metadata, request_type) VALUES ($1, $2) RETURNING id, created_at, request_type",
+		metadataJSON, requestType,
+	).Scan(&conv.ID, &conv.CreatedAt, &conv.RequestType)
 	if err != nil {
 		return nil, nil, err
 	}
 	conv.Metadata = metadata
+	conv.RequestType = requestType
 
 	var branch Branch
 	err = tx.QueryRowContext(ctx,
@@ -117,9 +118,9 @@ func (s *PostgresStorage) GetConversation(ctx context.Context, id string) (*Conv
 	var conv Conversation
 	var metadataJSON []byte
 	err := s.db.QueryRowContext(ctx,
-		"SELECT id, created_at, metadata FROM conversations WHERE id = $1",
+		"SELECT id, created_at, request_type, metadata FROM conversations WHERE id = $1",
 		id,
-	).Scan(&conv.ID, &conv.CreatedAt, &metadataJSON)
+	).Scan(&conv.ID, &conv.CreatedAt, &conv.RequestType, &metadataJSON)
 	if err != nil {
 		return nil, err
 	}
@@ -252,7 +253,7 @@ func (s *PostgresStorage) GetBranchHistory(ctx context.Context, branchID string)
 
 // FindMessageByHistory searches for a message in the database based on a history of messages.
 // Returns the message ID if found, or an empty string and an error.
-func (s *PostgresStorage) FindMessageByHistory(ctx context.Context, history []SimpleMessage) (string, error) {
+func (s *PostgresStorage) FindMessageByHistory(ctx context.Context, history []SimpleMessage, requestType string) (string, error) {
 	if len(history) == 0 {
 		return "", nil
 	}
@@ -260,14 +261,14 @@ func (s *PostgresStorage) FindMessageByHistory(ctx context.Context, history []Si
 	currentHash := computeHistoryHash(history)
 	var mID string
 	err := s.db.QueryRowContext(ctx,
-		"SELECT id FROM messages WHERE cumulative_hash = $1 ORDER BY created_at DESC LIMIT 1",
-		currentHash,
+		"SELECT m.id FROM messages m JOIN conversations c ON m.conversation_id = c.id WHERE m.cumulative_hash = $1 AND c.request_type = $2 ORDER BY m.created_at DESC LIMIT 1",
+		currentHash, requestType,
 	).Scan(&mID)
 
 	if err == nil {
 		return mID, nil
 	}
-	if errors.Is(err, sql.ErrNoRows) {
+	if !errors.Is(err, sql.ErrNoRows) {
 		return "", err
 	}
 	return "", nil
@@ -277,8 +278,8 @@ func (s *PostgresStorage) FindMessageByHistory(ctx context.Context, history []Si
 // Returns a slice of ConversationOverview and an error.
 func (s *PostgresStorage) ListConversations(ctx context.Context, p Pagination) ([]ConversationOverview, error) {
 	query := `
-		SELECT c.id, c.created_at, c.metadata,
-		   		m.id, m.conversation_id, m.branch_id, m.role, m.content, m.model, m.sequence_number, m.created_at, m.upstream_status_code, m.upstream_error, m.prompt_tokens, m.completion_tokens, m.prompt_eval_duration, m.eval_duration, m.parent_message_id
+		SELECT c.id, c.created_at, c.request_type, c.metadata,
+	   			m.id, m.conversation_id, m.branch_id, m.role, m.content, m.model, m.sequence_number, m.created_at, m.upstream_status_code, m.upstream_error, m.prompt_tokens, m.completion_tokens, m.prompt_eval_duration, m.eval_duration, m.parent_message_id
 		FROM conversations c
 		LEFT JOIN LATERAL (
 			SELECT * FROM messages m 
@@ -308,7 +309,7 @@ func (s *PostgresStorage) ListConversations(ctx context.Context, p Pagination) (
 		var mPromptEvalDuration, mEvalDuration sql.NullInt64
 
 		err := rows.Scan(
-			&o.ID, &o.CreatedAt, &metadata,
+			&o.ID, &o.CreatedAt, &o.RequestType, &metadata,
 			&mID, &mConvID, &mBranchID, &mRole, &mContent, &mModel, &mSeq, &mCreatedAt, &mStatus, &mError, &mPromptTokens, &mCompletionTokens, &mPromptEvalDuration, &mEvalDuration, &mParentID,
 		)
 		if err != nil {

@@ -7,9 +7,10 @@ import (
 
 // Conversation represents a high-level container for a chat session.
 type Conversation struct {
-	ID        string                 `json:"id"`
-	CreatedAt time.Time              `json:"created_at"`
-	Metadata  map[string]interface{} `json:"metadata,omitzero"`
+	ID          string                 `json:"id"`
+	CreatedAt   time.Time              `json:"created_at"`
+	RequestType string                 `json:"request_type"`
+	Metadata    map[string]interface{} `json:"metadata,omitzero"`
 }
 
 // ConversationOverview provides a summary of a conversation.
@@ -61,7 +62,7 @@ type Pagination struct {
 // Storage defines the interface for persisting and retrieving conversation data.
 type Storage interface {
 	// CreateConversation creates a new conversation and its initial branch.
-	CreateConversation(ctx context.Context, metadata map[string]interface{}) (*Conversation, *Branch, error)
+	CreateConversation(ctx context.Context, metadata map[string]interface{}, requestType string) (*Conversation, *Branch, error)
 
 	// GetConversation retrieves a conversation by ID.
 	GetConversation(ctx context.Context, id string) (*Conversation, error)
@@ -75,8 +76,8 @@ type Storage interface {
 	GetBranchHistory(ctx context.Context, branchID string) ([]Message, error)
 
 	// FindMessageByHistory finds the deepest matching message ID
-	// for the provided sequence of (role, content) pairs.
-	FindMessageByHistory(ctx context.Context, history []SimpleMessage) (messageID string, err error)
+	// for the provided sequence of (role, content) pairs within a specific request type.
+	FindMessageByHistory(ctx context.Context, history []SimpleMessage, requestType string) (messageID string, err error)
 
 	// ListConversations returns a list of all conversations, including their first message.
 	ListConversations(ctx context.Context, p Pagination) ([]ConversationOverview, error)

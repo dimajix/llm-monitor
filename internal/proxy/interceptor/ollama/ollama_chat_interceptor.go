@@ -177,6 +177,6 @@ func (oi *ChatInterceptor) saveLog(ollamaState *chatState) {
 			EvalDuration:       time.Duration(ollamaState.response.EvalDuration),
 		}
 
-		oi.SaveToStorage(ctx, history, assistantMsg, ollamaState.statusCode)
+		oi.SaveToStorage(ctx, history, assistantMsg, ollamaState.statusCode, "chat")
 	}
 }

@@ -27,7 +27,7 @@ func TestPostgresStorage_Branching(t *testing.T) {
 	_, _ = storage.db.Exec("DELETE FROM conversations")
 
 	// 1. Create a conversation
-	_, branch, err := storage.CreateConversation(ctx, nil)
+	_, branch, err := storage.CreateConversation(ctx, nil, "chat")
 	if err != nil {
 		t.Fatalf("Failed to create conversation: %v", err)
 	}
@@ -123,7 +123,7 @@ func TestPostgresStorage_Branching(t *testing.T) {
 		{Role: "assistant", Content: "Hi there!"},
 		{Role: "user", Content: "What is the weather?"},
 	}
-	foundID, err := storage.FindMessageByHistory(ctx, history)
+	foundID, err := storage.FindMessageByHistory(ctx, history, "chat")
 	if err != nil {
 		t.Fatalf("FindMessageByHistory failed: %v", err)
 	}
@@ -136,7 +136,7 @@ func TestPostgresStorage_Branching(t *testing.T) {
 		{Role: "user", Content: "Hello"},
 		{Role: "assistant", Content: "Hi there!"},
 	}
-	foundIDPartial, err := storage.FindMessageByHistory(ctx, historyPartial)
+	foundIDPartial, err := storage.FindMessageByHistory(ctx, historyPartial, "chat")
 	if err != nil {
 		t.Fatalf("FindMessageByHistory failed: %v", err)
 	}
