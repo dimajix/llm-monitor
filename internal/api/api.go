@@ -9,6 +9,7 @@ import (
 
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 )
 
@@ -86,7 +87,13 @@ func (h *APIHandler) getConversationMessages(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	conv, err := h.storage.GetConversation(ctx, id)
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		logrus.WithError(err).Errorf("Failed to parse conversation id %s", id)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	conv, err := h.storage.GetConversation(ctx, uid)
 	if err != nil {
 		logrus.WithError(err).Errorf("Failed to check conversation %s", id)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -97,7 +104,7 @@ func (h *APIHandler) getConversationMessages(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	messages, err := h.storage.GetConversationMessages(ctx, id)
+	messages, err := h.storage.GetConversationMessages(ctx, uid)
 	if err != nil {
 		logrus.WithError(err).Errorf("Failed to get messages for conversation %s", id)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -140,10 +147,16 @@ func (h *APIHandler) getBranchMessages(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Branch ID is required", http.StatusBadRequest)
 		return
 	}
-
-	branch, err := h.storage.GetBranch(ctx, branchID)
+	uid, err := uuid.Parse(branchID)
 	if err != nil {
-		logrus.WithError(err).Errorf("Failed to get branch %s", branchID)
+		logrus.WithError(err).Errorf("Failed to parse branch id %s", uid)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	branch, err := h.storage.GetBranch(ctx, uid)
+	if err != nil {
+		logrus.WithError(err).Errorf("Failed to get branch %s", uid)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
@@ -152,9 +165,9 @@ func (h *APIHandler) getBranchMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	messages, err := h.storage.GetBranchHistory(ctx, branchID)
+	messages, err := h.storage.GetBranchHistory(ctx, uid)
 	if err != nil {
-		logrus.WithError(err).Errorf("Failed to get branch history %s", branchID)
+		logrus.WithError(err).Errorf("Failed to get branch history %s", uid)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}

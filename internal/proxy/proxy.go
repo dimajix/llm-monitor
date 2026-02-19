@@ -133,7 +133,7 @@ func (ph *ProxyHandler) ServeHTTP2(w http.ResponseWriter, r *http.Request, intcp
 	// Create a copy of the request to modify headers
 	req := r.Clone(r.Context())
 	req.RequestURI = ""
-	req.Host = ""
+	req.Host = ph.UpstreamURL.Host
 	req.RemoteAddr = ""
 	req.URL.Scheme = ph.UpstreamURL.Scheme
 	req.URL.Host = ph.UpstreamURL.Host

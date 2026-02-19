@@ -5,6 +5,7 @@ import (
 	"llm-monitor/internal/storage"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 )
 
@@ -22,8 +23,8 @@ func (si *SavingInterceptor) SaveToStorage(ctx context.Context, history []storag
 	}
 
 	// 2. Try to find the deepest matching message ID
-	var currentParentID string
-	var currentBranchID string
+	var currentParentID uuid.UUID
+	var currentBranchID uuid.UUID
 
 	var curHistory = history
 	for len(curHistory) > 0 {
@@ -32,20 +33,20 @@ func (si *SavingInterceptor) SaveToStorage(ctx context.Context, history []storag
 			logrus.WithError(err).Warnf("[%s] Could not find message by history", si.Name)
 			return
 		}
-		if pid != "" {
+		if pid != uuid.Nil {
 			currentParentID = pid
 			break
 		}
 		newLen := len(curHistory) - 1
 		curHistory = curHistory[0:newLen]
 		if newLen <= 0 {
-			currentParentID = ""
+			currentParentID = uuid.Nil
 			break
 		}
 	}
 
 	// Create new conversation if no message is found
-	if currentParentID == "" {
+	if currentParentID == uuid.Nil {
 		// New conversation
 		model := ""
 		if len(history) > 0 {
@@ -72,7 +73,7 @@ func (si *SavingInterceptor) SaveToStorage(ctx context.Context, history []storag
 			return
 		}
 		currentParentID = msg.ID
-		currentBranchID = "" // Only need it for the first message if no parent
+		currentBranchID = uuid.Nil // Only need it for the first message if no parent
 	}
 
 	// 4. Add the assistant response

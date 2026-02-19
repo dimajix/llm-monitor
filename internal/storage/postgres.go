@@ -12,7 +12,8 @@ import (
 	"fmt"
 	"time"
 
-	_ "github.com/lib/pq"
+	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/sirupsen/logrus"
 )
 
@@ -114,7 +115,7 @@ func (s *PostgresStorage) CreateConversation(ctx context.Context, metadata map[s
 
 // GetConversation retrieves a conversation by its ID.
 // Returns a pointer to Conversation and an error.
-func (s *PostgresStorage) GetConversation(ctx context.Context, id string) (*Conversation, error) {
+func (s *PostgresStorage) GetConversation(ctx context.Context, id uuid.UUID) (*Conversation, error) {
 	var conv Conversation
 	var metadataJSON []byte
 	err := s.db.QueryRowContext(ctx,
@@ -136,7 +137,7 @@ func (s *PostgresStorage) GetConversation(ctx context.Context, id string) (*Conv
 
 // AddMessage adds a new message to a conversation, potentially forking the branch if needed.
 // Returns a pointer to Message and an error.
-func (s *PostgresStorage) AddMessage(ctx context.Context, parentMessageID string, message *Message) (*Message, error) {
+func (s *PostgresStorage) AddMessage(ctx context.Context, parentMessageID uuid.UUID, message *Message) (*Message, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -145,11 +146,11 @@ func (s *PostgresStorage) AddMessage(ctx context.Context, parentMessageID string
 		_ = tx.Rollback()
 	}(tx)
 
-	var branchID string
+	var branchID uuid.UUID
 	var lastHash string
 	var lastSeq int
 
-	if parentMessageID != "" {
+	if parentMessageID != uuid.Nil {
 		// Use specific parent message
 		err = tx.QueryRowContext(ctx,
 			"SELECT branch_id, cumulative_hash, sequence_number FROM messages WHERE id = $1",
@@ -186,14 +187,14 @@ func (s *PostgresStorage) AddMessage(ctx context.Context, parentMessageID string
 				return nil, err
 			}
 
-			branchID = newBranchID
+			branchID, _ = uuid.Parse(newBranchID)
 		}
 	} else {
 		// No parent message means this must be the first message in a conversation.
 		// However, we need a branchID to associate it with.
 		// If message.BranchID is provided, we use it.
 		branchID = message.BranchID
-		if branchID == "" {
+		if branchID == uuid.Nil {
 			return nil, fmt.Errorf("branchID is required when parentMessageID is empty")
 		}
 
@@ -204,14 +205,22 @@ func (s *PostgresStorage) AddMessage(ctx context.Context, parentMessageID string
 	nextSeq := lastSeq + 1
 	newHash := computeHash(lastHash, message.Role, message.Content)
 
+	metadataJSON, err := json.Marshal(message.Metadata)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal message metadata: %w", err)
+	}
+
 	var msg Message
 	err = tx.QueryRowContext(ctx,
-		"INSERT INTO messages (conversation_id, branch_id, role, content, model, sequence_number, cumulative_hash, upstream_status_code, upstream_error, prompt_tokens, completion_tokens, prompt_eval_duration, eval_duration, parent_message_id) VALUES ((SELECT conversation_id FROM branches WHERE id = $1), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, conversation_id, branch_id, role, content, model, sequence_number, created_at, upstream_status_code, upstream_error, prompt_tokens, completion_tokens, prompt_eval_duration, eval_duration, parent_message_id",
-		branchID, message.Role, message.Content, message.Model, nextSeq, newHash, message.UpstreamStatusCode, message.UpstreamError, message.PromptTokens, message.CompletionTokens, int64(message.PromptEvalDuration), int64(message.EvalDuration), optional(parentMessageID),
-	).Scan(&msg.ID, &msg.ConversationID, &msg.BranchID, &msg.Role, &msg.Content, &msg.Model, &msg.SequenceNumber, &msg.CreatedAt, &msg.UpstreamStatusCode, &msg.UpstreamError, &msg.PromptTokens, &msg.CompletionTokens, &msg.PromptEvalDuration, &msg.EvalDuration, &msg.ParentMessageID)
+		"INSERT INTO messages (conversation_id, branch_id, role, content, model, sequence_number, cumulative_hash, upstream_status_code, upstream_error, prompt_tokens, completion_tokens, prompt_eval_duration, eval_duration, parent_message_id, client_host, upstream_host, metadata) VALUES ((SELECT conversation_id FROM branches WHERE id = $1), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id, conversation_id, branch_id, role, content, model, sequence_number, created_at, upstream_status_code, upstream_error, prompt_tokens, completion_tokens, prompt_eval_duration, eval_duration, parent_message_id, client_host, upstream_host, metadata",
+		branchID, message.Role, message.Content, message.Model, nextSeq, newHash, message.UpstreamStatusCode, message.UpstreamError, message.PromptTokens, message.CompletionTokens, int64(message.PromptEvalDuration), int64(message.EvalDuration), optionalUUID(parentMessageID), message.ClientHost, message.UpstreamHost, metadataJSON,
+	).Scan(&msg.ID, &msg.ConversationID, &msg.BranchID, &msg.Role, &msg.Content, &msg.Model, &msg.SequenceNumber, &msg.CreatedAt, &msg.UpstreamStatusCode, &msg.UpstreamError, &msg.PromptTokens, &msg.CompletionTokens, &msg.PromptEvalDuration, &msg.EvalDuration, &msg.ParentMessageID, &msg.ClientHost, &msg.UpstreamHost, &metadataJSON)
 
 	if err != nil {
 		return nil, err
+	}
+	if err := json.Unmarshal(metadataJSON, &msg.Metadata); err != nil {
+		logrus.WithError(err).Warn("Failed to unmarshal message metadata")
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -223,7 +232,7 @@ func (s *PostgresStorage) AddMessage(ctx context.Context, parentMessageID string
 
 // GetBranchHistory retrieves the complete history of messages for a given branch.
 // Returns a slice of Message and an error.
-func (s *PostgresStorage) GetBranchHistory(ctx context.Context, branchID string) ([]Message, error) {
+func (s *PostgresStorage) GetBranchHistory(ctx context.Context, branchID uuid.UUID) ([]Message, error) {
 	query := `
 		WITH RECURSIVE branch_path AS (
 			SELECT id, parent_branch_id, parent_message_id, 0 as level
@@ -233,7 +242,7 @@ func (s *PostgresStorage) GetBranchHistory(ctx context.Context, branchID string)
 			FROM branches b
 			JOIN branch_path bp ON b.id = bp.parent_branch_id
 		)
-		SELECT m.id, m.conversation_id, m.branch_id, m.role, m.content, m.model, m.sequence_number, m.created_at, m.upstream_status_code, m.upstream_error, m.prompt_tokens, m.completion_tokens, m.prompt_eval_duration, m.eval_duration, m.parent_message_id
+		SELECT m.id, m.conversation_id, m.branch_id, m.role, m.content, m.model, m.sequence_number, m.created_at, m.child_branch_ids,  m.upstream_status_code, m.upstream_error, m.prompt_tokens, m.completion_tokens, m.prompt_eval_duration, m.eval_duration, m.parent_message_id, m.client_host, m.upstream_host, m.metadata
 		FROM messages m
 		JOIN branch_path bp ON m.branch_id = bp.id
 		WHERE (bp.level = 0) 
@@ -253,9 +262,9 @@ func (s *PostgresStorage) GetBranchHistory(ctx context.Context, branchID string)
 
 // FindMessageByHistory searches for a message in the database based on a history of messages.
 // Returns the message ID if found, or an empty string and an error.
-func (s *PostgresStorage) FindMessageByHistory(ctx context.Context, history []SimpleMessage, requestType string) (string, error) {
+func (s *PostgresStorage) FindMessageByHistory(ctx context.Context, history []SimpleMessage, requestType string) (uuid.UUID, error) {
 	if len(history) == 0 {
-		return "", nil
+		return uuid.Nil, nil
 	}
 
 	currentHash := computeHistoryHash(history)
@@ -266,12 +275,12 @@ func (s *PostgresStorage) FindMessageByHistory(ctx context.Context, history []Si
 	).Scan(&mID)
 
 	if err == nil {
-		return mID, nil
+		return uuid.Parse(mID)
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
-		return "", err
+		return uuid.Nil, err
 	}
-	return "", nil
+	return uuid.Nil, nil
 }
 
 // ListConversations retrieves a paginated list of conversations with their first messages.
@@ -279,7 +288,7 @@ func (s *PostgresStorage) FindMessageByHistory(ctx context.Context, history []Si
 func (s *PostgresStorage) ListConversations(ctx context.Context, p Pagination) ([]ConversationOverview, error) {
 	query := `
 		SELECT c.id, c.created_at, c.request_type, c.metadata,
-	   			m.id, m.conversation_id, m.branch_id, m.role, m.content, m.model, m.sequence_number, m.created_at, m.upstream_status_code, m.upstream_error, m.prompt_tokens, m.completion_tokens, m.prompt_eval_duration, m.eval_duration, m.parent_message_id
+	   			m.id, m.conversation_id, m.branch_id, m.role, m.content, m.model, m.sequence_number, m.created_at, m.child_branch_ids, m.upstream_status_code, m.upstream_error, m.prompt_tokens, m.completion_tokens, m.prompt_eval_duration, m.eval_duration, m.parent_message_id, m.client_host, m.upstream_host, m.metadata
 		FROM conversations c
 		LEFT JOIN LATERAL (
 			SELECT * FROM messages m 
@@ -302,15 +311,16 @@ func (s *PostgresStorage) ListConversations(ctx context.Context, p Pagination) (
 		var o ConversationOverview
 		var metadata []byte
 		var m Message
-		var mID, mConvID, mBranchID, mRole, mContent, mModel, mError, mParentID sql.NullString
+		var mModel, mError, mParentID, mClientHost, mUpstreamHost sql.NullString
 		var mSeq sql.NullInt32
 		var mCreatedAt sql.NullTime
 		var mStatus, mPromptTokens, mCompletionTokens sql.NullInt32
 		var mPromptEvalDuration, mEvalDuration sql.NullInt64
+		var mMetadata []byte
 
 		err := rows.Scan(
 			&o.ID, &o.CreatedAt, &o.RequestType, &metadata,
-			&mID, &mConvID, &mBranchID, &mRole, &mContent, &mModel, &mSeq, &mCreatedAt, &mStatus, &mError, &mPromptTokens, &mCompletionTokens, &mPromptEvalDuration, &mEvalDuration, &mParentID,
+			&m.ID, &m.ConversationID, &m.BranchID, &m.Role, &m.Content, &mModel, &mSeq, &mCreatedAt, pq.Array(&m.ChildBranchIDs), &mStatus, &mError, &mPromptTokens, &mCompletionTokens, &mPromptEvalDuration, &mEvalDuration, &mParentID, &mClientHost, &mUpstreamHost, &mMetadata,
 		)
 		if err != nil {
 			return nil, err
@@ -322,12 +332,7 @@ func (s *PostgresStorage) ListConversations(ctx context.Context, p Pagination) (
 			}
 		}
 
-		if mID.Valid {
-			m.ID = mID.String
-			m.ConversationID = mConvID.String
-			m.BranchID = mBranchID.String
-			m.Role = mRole.String
-			m.Content = mContent.String
+		if m.ID != uuid.Nil {
 			m.Model = mModel.String
 			m.SequenceNumber = int(mSeq.Int32)
 			m.CreatedAt = mCreatedAt.Time
@@ -350,7 +355,19 @@ func (s *PostgresStorage) ListConversations(ctx context.Context, p Pagination) (
 				m.EvalDuration = time.Duration(mEvalDuration.Int64)
 			}
 			if mParentID.Valid {
-				m.ParentMessageID = &mParentID.String
+				mid, _ := uuid.Parse(mParentID.String)
+				m.ParentMessageID = &mid
+			}
+			if mClientHost.Valid {
+				m.ClientHost = mClientHost.String
+			}
+			if mUpstreamHost.Valid {
+				m.UpstreamHost = mUpstreamHost.String
+			}
+			if len(mMetadata) > 0 {
+				if err := json.Unmarshal(mMetadata, &m.Metadata); err != nil {
+					logrus.WithError(err).Warn("Failed to unmarshal message metadata")
+				}
 			}
 			o.FirstMessage = &m
 		}
@@ -364,7 +381,7 @@ func (s *PostgresStorage) ListConversations(ctx context.Context, p Pagination) (
 // Returns a slice of Message and an error.
 func (s *PostgresStorage) SearchMessages(ctx context.Context, query string, p Pagination) ([]Message, error) {
 	sqlQuery := `
-		SELECT id, conversation_id, branch_id, role, content, model, sequence_number, created_at, upstream_status_code, upstream_error, prompt_tokens, completion_tokens, prompt_eval_duration, eval_duration, parent_message_id
+		SELECT id, conversation_id, branch_id, role, content, model, sequence_number, created_at, child_branch_ids, upstream_status_code, upstream_error, prompt_tokens, completion_tokens, prompt_eval_duration, eval_duration, parent_message_id, client_host, upstream_host, metadata
 		FROM messages
 		WHERE content ILIKE $1
 		ORDER BY created_at DESC
@@ -383,9 +400,9 @@ func (s *PostgresStorage) SearchMessages(ctx context.Context, query string, p Pa
 
 // GetConversationMessages retrieves all messages for a given conversation ID.
 // Returns a slice of Message and an error.
-func (s *PostgresStorage) GetConversationMessages(ctx context.Context, conversationID string) ([]Message, error) {
+func (s *PostgresStorage) GetConversationMessages(ctx context.Context, conversationID uuid.UUID) ([]Message, error) {
 	query := `
-		SELECT id, conversation_id, branch_id, role, content, model, sequence_number, created_at, upstream_status_code, upstream_error, prompt_tokens, completion_tokens, prompt_eval_duration, eval_duration, parent_message_id
+		SELECT id, conversation_id, branch_id, role, content, model, sequence_number, created_at, child_branch_ids, upstream_status_code, upstream_error, prompt_tokens, completion_tokens, prompt_eval_duration, eval_duration, parent_message_id, client_host, upstream_host, metadata
 		FROM messages
 		WHERE conversation_id = $1
 		ORDER BY sequence_number ASC, created_at ASC
@@ -403,7 +420,7 @@ func (s *PostgresStorage) GetConversationMessages(ctx context.Context, conversat
 
 // GetBranch retrieves a branch by its ID.
 // Returns a pointer to Branch and an error.
-func (s *PostgresStorage) GetBranch(ctx context.Context, branchID string) (*Branch, error) {
+func (s *PostgresStorage) GetBranch(ctx context.Context, branchID uuid.UUID) (*Branch, error) {
 	var b Branch
 	var parentBranchID, parentMessageID sql.NullString
 	err := s.db.QueryRowContext(ctx,
@@ -420,10 +437,12 @@ func (s *PostgresStorage) GetBranch(ctx context.Context, branchID string) (*Bran
 	}
 
 	if parentBranchID.Valid {
-		b.ParentBranchID = &parentBranchID.String
+		pbid, _ := uuid.Parse(parentBranchID.String)
+		b.ParentBranchID = &pbid
 	}
 	if parentMessageID.Valid {
-		b.ParentMessageID = &parentMessageID.String
+		pmid, _ := uuid.Parse(parentMessageID.String)
+		b.ParentMessageID = &pmid
 	}
 
 	return &b, nil
@@ -447,11 +466,12 @@ func (s *PostgresStorage) scanMessages(rows *sql.Rows) ([]Message, error) {
 
 func (s *PostgresStorage) scanMessage(rows *sql.Rows) (*Message, error) {
 	var m Message
-	var modelVal, errorText, parentMsgIDVal sql.NullString
+	var modelVal, errorText, parentMsgIDVal, clientHostVal, upstreamHostVal sql.NullString
 	var statusCode, promptTokens, completionTokens sql.NullInt32
 	var promptEvalDuration, evalDuration sql.NullInt64
+	var metadataJSON []byte
 	err := rows.Scan(
-		&m.ID, &m.ConversationID, &m.BranchID, &m.Role, &m.Content, &modelVal, &m.SequenceNumber, &m.CreatedAt, &statusCode, &errorText, &promptTokens, &completionTokens, &promptEvalDuration, &evalDuration, &parentMsgIDVal,
+		&m.ID, &m.ConversationID, &m.BranchID, &m.Role, &m.Content, &modelVal, &m.SequenceNumber, &m.CreatedAt, pq.Array(&m.ChildBranchIDs), &statusCode, &errorText, &promptTokens, &completionTokens, &promptEvalDuration, &evalDuration, &parentMsgIDVal, &clientHostVal, &upstreamHostVal, &metadataJSON,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -481,7 +501,19 @@ func (s *PostgresStorage) scanMessage(rows *sql.Rows) (*Message, error) {
 		m.EvalDuration = time.Duration(evalDuration.Int64)
 	}
 	if parentMsgIDVal.Valid {
-		m.ParentMessageID = &parentMsgIDVal.String
+		pmid, _ := uuid.Parse(parentMsgIDVal.String)
+		m.ParentMessageID = &pmid
+	}
+	if clientHostVal.Valid {
+		m.ClientHost = clientHostVal.String
+	}
+	if upstreamHostVal.Valid {
+		m.UpstreamHost = upstreamHostVal.String
+	}
+	if len(metadataJSON) > 0 {
+		if err := json.Unmarshal(metadataJSON, &m.Metadata); err != nil {
+			logrus.WithError(err).Warn("Failed to unmarshal message metadata")
+		}
 	}
 	return &m, nil
 }
@@ -489,6 +521,13 @@ func (s *PostgresStorage) scanMessage(rows *sql.Rows) (*Message, error) {
 // optional returns a pointer to the given string if it's not empty, otherwise returns nil.
 func optional(s string) *string {
 	if s == "" {
+		return nil
+	}
+	return &s
+}
+
+func optionalUUID(s uuid.UUID) *uuid.UUID {
+	if s == uuid.Nil {
 		return nil
 	}
 	return &s

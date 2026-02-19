@@ -4,11 +4,13 @@ import (
 	"context"
 	"llm-monitor/internal/config"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // Conversation represents a high-level container for a chat session.
 type Conversation struct {
-	ID          string                 `json:"id"`
+	ID          uuid.UUID              `json:"id"`
 	CreatedAt   time.Time              `json:"created_at"`
 	RequestType string                 `json:"request_type"`
 	Metadata    map[string]interface{} `json:"metadata,omitzero"`
@@ -22,36 +24,39 @@ type ConversationOverview struct {
 
 // Branch represents a path within a conversation.
 type Branch struct {
-	ID              string    `json:"id"`
-	ConversationID  string    `json:"conversation_id"`
-	ParentBranchID  *string   `json:"parent_branch_id,omitzero"`
-	ParentMessageID *string   `json:"parent_message_id,omitzero"`
-	CreatedAt       time.Time `json:"created_at"`
+	ID              uuid.UUID  `json:"id"`
+	ConversationID  uuid.UUID  `json:"conversation_id"`
+	ParentBranchID  *uuid.UUID `json:"parent_branch_id,omitzero"`
+	ParentMessageID *uuid.UUID `json:"parent_message_id,omitzero"`
+	CreatedAt       time.Time  `json:"created_at"`
 }
 
 // SimpleMessage represents a basic chat message with role and content.
 type SimpleMessage struct {
-	Role               string        `json:"role"`
-	Content            string        `json:"content"`
-	Model              string        `json:"model,omitzero"`
-	PromptTokens       int           `json:"prompt_tokens,omitzero"`
-	CompletionTokens   int           `json:"completion_tokens,omitzero"`
-	PromptEvalDuration time.Duration `json:"prompt_eval_duration,omitzero"`
-	EvalDuration       time.Duration `json:"eval_duration,omitzero"`
+	Role               string         `json:"role"`
+	Content            string         `json:"content"`
+	Model              string         `json:"model,omitzero"`
+	PromptTokens       int            `json:"prompt_tokens,omitzero"`
+	CompletionTokens   int            `json:"completion_tokens,omitzero"`
+	PromptEvalDuration time.Duration  `json:"prompt_eval_duration,omitzero"`
+	EvalDuration       time.Duration  `json:"eval_duration,omitzero"`
+	ClientHost         string         `json:"client_host,omitzero"`
+	UpstreamHost       string         `json:"upstream_host,omitzero"`
+	Metadata           map[string]any `json:"metadata,omitzero"`
 }
 
 // Message represents a single chat message.
 type Message struct {
 	SimpleMessage
-	ID                 string    `json:"id"`
-	ConversationID     string    `json:"conversation_id"`
-	BranchID           string    `json:"branch_id"`
-	SequenceNumber     int       `json:"sequence_number"`
-	ChildBranchIDs     []string  `json:"child_branch_ids,omitzero"`
-	CreatedAt          time.Time `json:"created_at"`
-	ParentMessageID    *string   `json:"parent_message_id,omitzero"`
-	UpstreamStatusCode int       `json:"upstream_status_code,omitzero"`
-	UpstreamError      *string   `json:"upstream_error,omitzero"`
+	ID                 uuid.UUID   `json:"id"`
+	ConversationID     uuid.UUID   `json:"conversation_id"`
+	BranchID           uuid.UUID   `json:"branch_id"`
+	SequenceNumber     int         `json:"sequence_number"`
+	ChildBranchIDs     []uuid.UUID `json:"child_branch_ids,omitzero"`
+	CreatedAt          time.Time   `json:"created_at"`
+	ParentMessageID    *uuid.UUID  `json:"parent_message_id,omitzero"`
+	UpstreamStatusCode int         `json:"upstream_status_code,omitzero"`
+	UpstreamError      *string     `json:"upstream_error,omitzero"`
 }
 
 // Pagination defines parameters for paginated queries.
@@ -66,19 +71,19 @@ type Storage interface {
 	CreateConversation(ctx context.Context, metadata map[string]interface{}, requestType string) (*Conversation, *Branch, error)
 
 	// GetConversation retrieves a conversation by ID.
-	GetConversation(ctx context.Context, id string) (*Conversation, error)
+	GetConversation(ctx context.Context, id uuid.UUID) (*Conversation, error)
 
 	// AddMessage adds a message to an existing branch.
 	// If parentMessageID is provided, it uses that message as the parent.
 	// If the parent message is not the tip of its branch, a new branch is automatically created.
-	AddMessage(ctx context.Context, parentMessageID string, message *Message) (*Message, error)
+	AddMessage(ctx context.Context, parentMessageID uuid.UUID, message *Message) (*Message, error)
 
 	// GetBranchHistory retrieves the full message history for a specific branch.
-	GetBranchHistory(ctx context.Context, branchID string) ([]Message, error)
+	GetBranchHistory(ctx context.Context, branchID uuid.UUID) ([]Message, error)
 
 	// FindMessageByHistory finds the deepest matching message ID
 	// for the provided sequence of (role, content) pairs within a specific request type.
-	FindMessageByHistory(ctx context.Context, history []SimpleMessage, requestType string) (messageID string, err error)
+	FindMessageByHistory(ctx context.Context, history []SimpleMessage, requestType string) (messageID uuid.UUID, err error)
 
 	// ListConversations returns a list of all conversations, including their first message.
 	ListConversations(ctx context.Context, p Pagination) ([]ConversationOverview, error)
@@ -87,10 +92,10 @@ type Storage interface {
 	SearchMessages(ctx context.Context, query string, p Pagination) ([]Message, error)
 
 	// GetConversationMessages retrieves all messages belonging to a conversation.
-	GetConversationMessages(ctx context.Context, conversationID string) ([]Message, error)
+	GetConversationMessages(ctx context.Context, conversationID uuid.UUID) ([]Message, error)
 
 	// GetBranch retrieves a branch by ID.
-	GetBranch(ctx context.Context, branchID string) (*Branch, error)
+	GetBranch(ctx context.Context, branchID uuid.UUID) (*Branch, error)
 }
 
 // CreateStorage creates a storage instance based on configuration

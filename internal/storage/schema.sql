@@ -40,6 +40,9 @@ CREATE TABLE messages (
     prompt_eval_duration BIGINT,
     eval_duration BIGINT,
     parent_message_id UUID REFERENCES messages(id),
+    client_host VARCHAR(128),
+    upstream_host VARCHAR(128),
+    metadata JSONB,
     
     UNIQUE (branch_id, sequence_number)
 );
@@ -62,4 +65,4 @@ CREATE TABLE IF NOT EXISTS schema_version (
     applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-INSERT INTO schema_version (version) VALUES (6) ON CONFLICT (version) DO UPDATE SET version = 6;
+INSERT INTO schema_version (version) VALUES (8) ON CONFLICT (version) DO UPDATE SET version = 8;

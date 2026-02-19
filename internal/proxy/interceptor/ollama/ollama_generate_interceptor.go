@@ -44,11 +44,13 @@ type generateResponse struct {
 
 // generateState holds the state for an Ollama generate request
 type generateState struct {
-	request    generateRequest
-	response   generateResponse
-	startTime  time.Time
-	endTime    time.Time
-	statusCode int
+	request      generateRequest
+	response     generateResponse
+	startTime    time.Time
+	endTime      time.Time
+	statusCode   int
+	clientHost   string
+	upstreamHost string
 }
 
 // CreateState creates a new generateState for tracking requests
@@ -73,6 +75,8 @@ func (oi *GenerateInterceptor) RequestInterceptor(req *http.Request, state inter
 
 	// Store the request body in state
 	ollamaState, _ := state.(*generateState)
+	ollamaState.upstreamHost = req.Host
+	ollamaState.clientHost = req.Header.Get("X-Forwarded-For")
 
 	// Parse the request to extract model and prompt
 	var generateReq generateRequest
@@ -157,7 +161,7 @@ func (oi *GenerateInterceptor) saveLog(ollamaState *generateState) {
 		defer cancel()
 
 		history := []storage.SimpleMessage{
-			{Role: "user", Content: ollamaState.request.Prompt, Model: ollamaState.request.Model},
+			{Role: "user", Content: ollamaState.request.Prompt, Model: ollamaState.request.Model, ClientHost: ollamaState.clientHost},
 		}
 		assistantMsg := storage.SimpleMessage{
 			Role:               "assistant",
@@ -167,6 +171,7 @@ func (oi *GenerateInterceptor) saveLog(ollamaState *generateState) {
 			CompletionTokens:   ollamaState.response.EvalCount,
 			PromptEvalDuration: time.Duration(ollamaState.response.PromptEvalDuration),
 			EvalDuration:       time.Duration(ollamaState.response.EvalDuration),
+			UpstreamHost:       ollamaState.upstreamHost,
 		}
 
 		oi.SaveToStorage(ctx, history, assistantMsg, ollamaState.statusCode, "generate")

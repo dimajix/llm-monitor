@@ -48,11 +48,13 @@ type chatResponse struct {
 
 // chatState holds the state information for Ollama requests
 type chatState struct {
-	request    chatRequest
-	response   chatResponse
-	startTime  time.Time
-	endTime    time.Time
-	statusCode int
+	request      chatRequest
+	response     chatResponse
+	startTime    time.Time
+	endTime      time.Time
+	statusCode   int
+	clientHost   string
+	upstreamHost string
 }
 
 // CreateState creates a new state for the interceptor
@@ -77,6 +79,8 @@ func (oi *ChatInterceptor) RequestInterceptor(req *http.Request, state intercept
 
 	// Extract model name
 	ollamaState, _ := state.(*chatState)
+	ollamaState.upstreamHost = req.Host
+	ollamaState.clientHost = req.Header.Get("X-Forwarded-For")
 
 	// Parse the chat request
 	var chatReq chatRequest
@@ -165,7 +169,7 @@ func (oi *ChatInterceptor) saveLog(ollamaState *chatState) {
 
 		history := make([]storage.SimpleMessage, len(ollamaState.request.Messages))
 		for i, m := range ollamaState.request.Messages {
-			history[i] = storage.SimpleMessage{Role: m.Role, Content: m.Content, Model: ollamaState.request.Model}
+			history[i] = storage.SimpleMessage{Role: m.Role, Content: m.Content, Model: ollamaState.request.Model, ClientHost: ollamaState.clientHost}
 		}
 		assistantMsg := storage.SimpleMessage{
 			Role:               ollamaState.response.Message.Role,
@@ -175,6 +179,7 @@ func (oi *ChatInterceptor) saveLog(ollamaState *chatState) {
 			CompletionTokens:   ollamaState.response.EvalCount,
 			PromptEvalDuration: time.Duration(ollamaState.response.PromptEvalDuration),
 			EvalDuration:       time.Duration(ollamaState.response.EvalDuration),
+			UpstreamHost:       ollamaState.upstreamHost,
 		}
 
 		oi.SaveToStorage(ctx, history, assistantMsg, ollamaState.statusCode, "chat")
