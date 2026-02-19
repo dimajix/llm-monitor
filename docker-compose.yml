@@ -1,6 +1,7 @@
 services:
   proxy:
     image: dimajix/llm-monitor
+    restart: unless-stopped
     build: .
     ports:
       - "8080:8080"
@@ -18,6 +19,7 @@ services:
 
   api:
     image: dimajix/llm-monitor
+    restart: unless-stopped
     command: ["./llm-monitor-api", "-c", "/app/config/config.yaml"]
     ports:
       - "8081:8081"
@@ -28,6 +30,7 @@ services:
 
   db:
     image: postgres:15-alpine
+    restart: unless-stopped
     environment:
       - POSTGRES_USER=llm_user
       - POSTGRES_PASSWORD=llm_pass
