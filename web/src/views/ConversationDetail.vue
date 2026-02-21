@@ -6,20 +6,12 @@
       <div class="d-flex align-center px-4 py-2">
         <div>
           <h2 class="text-h6">
+            <request-type :request-type="conversation?.request_type" size="20" />
             Conversation {{ id }}
-            <v-tooltip v-if="conversation?.request_type === 'chat' || conversation?.request_type === 'generate'" :text="'Request Type: ' + conversation?.request_type">
-              <template #activator="{ props }">
-                <v-icon v-bind="props" class="ml-2" :icon="'$' + conversation?.request_type" size="20" color="info"></v-icon>
-              </template>
-            </v-tooltip>
-            <v-tooltip v-else-if="conversation?.request_type" :text="'Request Type: ' + conversation?.request_type">
-              <template #activator="{ props }">
-                <v-chip v-bind="props" class="ml-2" size="small" variant="flat" color="info">
-                  {{ conversation?.request_type }}
-                </v-chip>
-              </template>
-            </v-tooltip>
           </h2>
+          <div class="text-subtitle-2 opacity-70">
+            Created at: {{ formatDate(conversation?.created_at) }}
+          </div>
           <div class="text-subtitle-2 opacity-70">Branch: {{ currentBranchId || mainBranchId || 'unknown' }}</div>
         </div>
         <v-spacer />
@@ -77,6 +69,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { getConversationMessages, getBranchHistory, type Message, type ConversationMessages } from '../services/api'
 import ChatMessage from '../components/ChatMessage.vue'
+import RequestType from '../components/RequestType.vue'
 
 const props = defineProps<{
   id: string

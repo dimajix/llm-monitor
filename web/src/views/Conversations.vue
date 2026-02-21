@@ -24,7 +24,7 @@
               <template #append-info>
                 <v-tooltip v-if="c.system_prompt" text="System prompt present">
                   <template #activator="{ props }">
-                    <v-icon v-bind="props" size="small" color="grey" class="ml-2" icon="$cog"></v-icon>
+                    <v-icon v-bind="props" size="small" color="grey" class="ml-2" icon="$robot-industrial"></v-icon>
                   </template>
                 </v-tooltip>
               </template>
