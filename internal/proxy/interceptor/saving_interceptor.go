@@ -34,7 +34,14 @@ func (si *SavingInterceptor) SaveToStorage(ctx context.Context, history []storag
 			return
 		}
 		if pid != uuid.Nil {
-			currentParentID = pid
+			// Do NOT create a new branch if the common messages actually is ONLY the first message AND its role is "system".
+			// In such a case, a new conversation needs to be created instead.
+			if len(curHistory) == 1 && curHistory[0].Role == "system" {
+				currentParentID = uuid.Nil
+				curHistory = curHistory[0:0]
+			} else {
+				currentParentID = pid
+			}
 			break
 		}
 		newLen := len(curHistory) - 1
