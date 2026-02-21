@@ -16,8 +16,10 @@
             <div class="d-flex align-center justify-space-between mb-1">
               <div>
                 <span class="text-medium-emphasis text-caption">{{ formattedDate }} </span>
+                <v-chip v-if="requestType" class="ml-2" size="small" variant="flat" color="info">{{ requestType }}</v-chip>
                 <v-chip class="ml-2" size="small" variant="flat">{{ message.role }}</v-chip>
                 <v-chip v-if="message.model" class="ml-1" size="small" variant="outlined" color="secondary">{{ message.model }}</v-chip>
+                <slot name="append-info"></slot>
               </div>
             </div>
             <div class="message-text" :class="{ 'full-size': fullSize }" v-html="renderedContent"></div>
@@ -27,6 +29,7 @@
         <div v-else class="bubble-layout">
           <div class="bubble-header d-flex align-center mb-1">
             <span class="text-medium-emphasis text-caption">{{ formattedDate }} </span>
+            <v-chip v-if="requestType" class="ml-2" size="small" variant="flat" color="info">{{ requestType }}</v-chip>
             <v-chip class="ml-2" size="small" variant="flat">{{ message.role }}</v-chip>
             <v-chip v-if="message.model" class="ml-1" size="small" variant="outlined" color="secondary">{{ message.model }}</v-chip>
           </div>
@@ -104,6 +107,7 @@ const md = new MarkdownIt({
 
 const props = defineProps<{
   message: Message
+  requestType?: string
   clickable?: boolean
   fullSize?: boolean
   bubble?: boolean

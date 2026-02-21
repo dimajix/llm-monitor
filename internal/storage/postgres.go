@@ -288,13 +288,19 @@ func (s *PostgresStorage) FindMessageByHistory(ctx context.Context, history []Si
 func (s *PostgresStorage) ListConversations(ctx context.Context, p Pagination) ([]ConversationOverview, error) {
 	query := `
 		SELECT c.id, c.created_at, c.request_type, c.metadata,
-	   			m.id, m.conversation_id, m.branch_id, m.role, m.content, m.model, m.sequence_number, m.created_at, m.child_branch_ids, m.upstream_status_code, m.upstream_error, m.prompt_tokens, m.completion_tokens, m.prompt_eval_duration, m.eval_duration, m.parent_message_id, m.client_host, m.upstream_host, m.metadata
+	   			m1.id, m1.conversation_id, m1.branch_id, m1.role, m1.content, m1.model, m1.sequence_number, m1.created_at, m1.child_branch_ids, m1.upstream_status_code, m1.upstream_error, m1.prompt_tokens, m1.completion_tokens, m1.prompt_eval_duration, m1.eval_duration, m1.parent_message_id, m1.client_host, m1.upstream_host, m1.metadata,
+	   			m2.id, m2.conversation_id, m2.branch_id, m2.role, m2.content, m2.model, m2.sequence_number, m2.created_at, m2.child_branch_ids, m2.upstream_status_code, m2.upstream_error, m2.prompt_tokens, m2.completion_tokens, m2.prompt_eval_duration, m2.eval_duration, m2.parent_message_id, m2.client_host, m2.upstream_host, m2.metadata
 		FROM conversations c
 		LEFT JOIN LATERAL (
 			SELECT * FROM messages m 
-			WHERE m.conversation_id = c.id 
+			WHERE m.conversation_id = c.id AND m.role != 'system'
 			ORDER BY m.sequence_number ASC LIMIT 1
-		) m ON true
+		) m1 ON true
+		LEFT JOIN LATERAL (
+			SELECT * FROM messages m 
+			WHERE m.conversation_id = c.id AND m.role = 'system'
+			ORDER BY m.sequence_number ASC LIMIT 1
+		) m2 ON true
 		ORDER BY c.created_at DESC
 		LIMIT $1 OFFSET $2
 	`
@@ -310,17 +316,26 @@ func (s *PostgresStorage) ListConversations(ctx context.Context, p Pagination) (
 	for rows.Next() {
 		var o ConversationOverview
 		var metadata []byte
-		var m Message
-		var mModel, mError, mParentID, mClientHost, mUpstreamHost sql.NullString
-		var mSeq sql.NullInt32
-		var mCreatedAt sql.NullTime
-		var mStatus, mPromptTokens, mCompletionTokens sql.NullInt32
-		var mPromptEvalDuration, mEvalDuration sql.NullInt64
-		var mMetadata []byte
+		var m1ID, m1ConvID, m1BranchID, m1Role, m1Content, m1Model, m1Error, m1ParentID, m1ClientHost, m1UpstreamHost sql.NullString
+		var m1ChildBranchIDs []string
+		var m1Seq sql.NullInt32
+		var m1CreatedAt sql.NullTime
+		var m1Status, m1PromptTokens, m1CompletionTokens sql.NullInt32
+		var m1PromptEvalDuration, m1EvalDuration sql.NullInt64
+		var m1Metadata []byte
+
+		var m2ID, m2ConvID, m2BranchID, m2Role, m2Content, m2Model, m2Error, m2ParentID, m2ClientHost, m2UpstreamHost sql.NullString
+		var m2ChildBranchIDs []string
+		var m2Seq sql.NullInt32
+		var m2CreatedAt sql.NullTime
+		var m2Status, m2PromptTokens, m2CompletionTokens sql.NullInt32
+		var m2PromptEvalDuration, m2EvalDuration sql.NullInt64
+		var m2Metadata []byte
 
 		err := rows.Scan(
 			&o.ID, &o.CreatedAt, &o.RequestType, &metadata,
-			&m.ID, &m.ConversationID, &m.BranchID, &m.Role, &m.Content, &mModel, &mSeq, &mCreatedAt, pq.Array(&m.ChildBranchIDs), &mStatus, &mError, &mPromptTokens, &mCompletionTokens, &mPromptEvalDuration, &mEvalDuration, &mParentID, &mClientHost, &mUpstreamHost, &mMetadata,
+			&m1ID, &m1ConvID, &m1BranchID, &m1Role, &m1Content, &m1Model, &m1Seq, &m1CreatedAt, pq.Array(&m1ChildBranchIDs), &m1Status, &m1Error, &m1PromptTokens, &m1CompletionTokens, &m1PromptEvalDuration, &m1EvalDuration, &m1ParentID, &m1ClientHost, &m1UpstreamHost, &m1Metadata,
+			&m2ID, &m2ConvID, &m2BranchID, &m2Role, &m2Content, &m2Model, &m2Seq, &m2CreatedAt, pq.Array(&m2ChildBranchIDs), &m2Status, &m2Error, &m2PromptTokens, &m2CompletionTokens, &m2PromptEvalDuration, &m2EvalDuration, &m2ParentID, &m2ClientHost, &m2UpstreamHost, &m2Metadata,
 		)
 		if err != nil {
 			return nil, err
@@ -332,44 +347,106 @@ func (s *PostgresStorage) ListConversations(ctx context.Context, p Pagination) (
 			}
 		}
 
-		if m.ID != uuid.Nil {
-			m.Model = mModel.String
-			m.SequenceNumber = int(mSeq.Int32)
-			m.CreatedAt = mCreatedAt.Time
-			if mStatus.Valid {
-				m.UpstreamStatusCode = int(mStatus.Int32)
+		if m1ID.Valid {
+			var m1 Message
+			m1.ID, _ = uuid.Parse(m1ID.String)
+			m1.ConversationID, _ = uuid.Parse(m1ConvID.String)
+			m1.BranchID, _ = uuid.Parse(m1BranchID.String)
+			m1.Role = m1Role.String
+			m1.Content = m1Content.String
+			m1.Model = m1Model.String
+			m1.SequenceNumber = int(m1Seq.Int32)
+			m1.CreatedAt = m1CreatedAt.Time
+			for _, idStr := range m1ChildBranchIDs {
+				if uid, err := uuid.Parse(idStr); err == nil {
+					m1.ChildBranchIDs = append(m1.ChildBranchIDs, uid)
+				}
 			}
-			if mError.Valid {
-				m.UpstreamError = &mError.String
+			if m1Status.Valid {
+				m1.UpstreamStatusCode = int(m1Status.Int32)
 			}
-			if mPromptTokens.Valid {
-				m.PromptTokens = int(mPromptTokens.Int32)
+			if m1Error.Valid {
+				m1.UpstreamError = &m1Error.String
 			}
-			if mCompletionTokens.Valid {
-				m.CompletionTokens = int(mCompletionTokens.Int32)
+			if m1PromptTokens.Valid {
+				m1.PromptTokens = int(m1PromptTokens.Int32)
 			}
-			if mPromptEvalDuration.Valid {
-				m.PromptEvalDuration = time.Duration(mPromptEvalDuration.Int64)
+			if m1CompletionTokens.Valid {
+				m1.CompletionTokens = int(m1CompletionTokens.Int32)
 			}
-			if mEvalDuration.Valid {
-				m.EvalDuration = time.Duration(mEvalDuration.Int64)
+			if m1PromptEvalDuration.Valid {
+				m1.PromptEvalDuration = time.Duration(m1PromptEvalDuration.Int64)
 			}
-			if mParentID.Valid {
-				mid, _ := uuid.Parse(mParentID.String)
-				m.ParentMessageID = &mid
+			if m1EvalDuration.Valid {
+				m1.EvalDuration = time.Duration(m1EvalDuration.Int64)
 			}
-			if mClientHost.Valid {
-				m.ClientHost = mClientHost.String
+			if m1ParentID.Valid {
+				mid, _ := uuid.Parse(m1ParentID.String)
+				m1.ParentMessageID = &mid
 			}
-			if mUpstreamHost.Valid {
-				m.UpstreamHost = mUpstreamHost.String
+			if m1ClientHost.Valid {
+				m1.ClientHost = m1ClientHost.String
 			}
-			if len(mMetadata) > 0 {
-				if err := json.Unmarshal(mMetadata, &m.Metadata); err != nil {
+			if m1UpstreamHost.Valid {
+				m1.UpstreamHost = m1UpstreamHost.String
+			}
+			if len(m1Metadata) > 0 {
+				if err := json.Unmarshal(m1Metadata, &m1.Metadata); err != nil {
 					logrus.WithError(err).Warn("Failed to unmarshal message metadata")
 				}
 			}
-			o.FirstMessage = &m
+			o.FirstMessage = &m1
+		}
+
+		if m2ID.Valid {
+			var m2 Message
+			m2.ID, _ = uuid.Parse(m2ID.String)
+			m2.ConversationID, _ = uuid.Parse(m2ConvID.String)
+			m2.BranchID, _ = uuid.Parse(m2BranchID.String)
+			m2.Role = m2Role.String
+			m2.Content = m2Content.String
+			m2.Model = m2Model.String
+			m2.SequenceNumber = int(m2Seq.Int32)
+			m2.CreatedAt = m2CreatedAt.Time
+			for _, idStr := range m2ChildBranchIDs {
+				if uid, err := uuid.Parse(idStr); err == nil {
+					m2.ChildBranchIDs = append(m2.ChildBranchIDs, uid)
+				}
+			}
+			if m2Status.Valid {
+				m2.UpstreamStatusCode = int(m2Status.Int32)
+			}
+			if m2Error.Valid {
+				m2.UpstreamError = &m2Error.String
+			}
+			if m2PromptTokens.Valid {
+				m2.PromptTokens = int(m2PromptTokens.Int32)
+			}
+			if m2CompletionTokens.Valid {
+				m2.CompletionTokens = int(m2CompletionTokens.Int32)
+			}
+			if m2PromptEvalDuration.Valid {
+				m2.PromptEvalDuration = time.Duration(m2PromptEvalDuration.Int64)
+			}
+			if m2EvalDuration.Valid {
+				m2.EvalDuration = time.Duration(m2EvalDuration.Int64)
+			}
+			if m2ParentID.Valid {
+				mid, _ := uuid.Parse(m2ParentID.String)
+				m2.ParentMessageID = &mid
+			}
+			if m2ClientHost.Valid {
+				m2.ClientHost = m2ClientHost.String
+			}
+			if m2UpstreamHost.Valid {
+				m2.UpstreamHost = m2UpstreamHost.String
+			}
+			if len(m2Metadata) > 0 {
+				if err := json.Unmarshal(m2Metadata, &m2.Metadata); err != nil {
+					logrus.WithError(err).Warn("Failed to unmarshal message metadata")
+				}
+			}
+			o.SystemPrompt = &m2
 		}
 
 		overviews = append(overviews, o)

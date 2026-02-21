@@ -5,7 +5,10 @@
     <div class="mt-2" v-if="!loading || allMessages.length > 0">
       <div class="d-flex align-center px-4 py-2">
         <div>
-          <h2 class="text-h6">Conversation {{ id }}</h2>
+          <h2 class="text-h6">
+            Conversation {{ id }}
+            <v-chip v-if="conversation?.request_type" class="ml-2" size="small" variant="flat" color="info">{{ conversation.request_type }}</v-chip>
+          </h2>
           <div class="text-subtitle-2 opacity-70">Branch: {{ currentBranchId || mainBranchId || 'unknown' }}</div>
         </div>
         <v-spacer />
@@ -61,7 +64,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { getConversationMessages, getBranchHistory, type Message } from '../services/api'
+import { getConversationMessages, getBranchHistory, type Message, type ConversationMessages } from '../services/api'
 import ChatMessage from '../components/ChatMessage.vue'
 
 const props = defineProps<{
@@ -71,6 +74,7 @@ const props = defineProps<{
 
 const loading = ref(false)
 const allMessages = ref<Message[]>([])
+const conversation = ref<ConversationMessages['conversation'] | null>(null)
 const mainBranchId = ref<string | null>(null)
 const currentBranchId = ref<string | null>(null)
 
@@ -82,6 +86,7 @@ async function load() {
   try {
     const data = await getConversationMessages(props.id)
     allMessages.value = data.messages
+    conversation.value = data.conversation
     // Pick main branch as the one with most messages
     const counts = new Map<string, number>()
     for (const m of data.messages) counts.set(m.branch_id, (counts.get(m.branch_id) || 0) + 1)

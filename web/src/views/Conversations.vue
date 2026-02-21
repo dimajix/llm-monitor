@@ -17,9 +17,18 @@
             <chat-message
               v-if="c.first_message"
               :message="c.first_message"
+              :request-type="c.request_type"
               clickable
               @click="goDetail(c.id)"
-            />
+            >
+              <template #append-info>
+                <v-tooltip v-if="c.system_prompt" text="System prompt present">
+                  <template #activator="{ props }">
+                    <v-icon v-bind="props" size="small" color="grey" class="ml-2" icon="$cog"></v-icon>
+                  </template>
+                </v-tooltip>
+              </template>
+            </chat-message>
           </template>
         </template>
         <template v-else>

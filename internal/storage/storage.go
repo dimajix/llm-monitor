@@ -19,6 +19,7 @@ type Conversation struct {
 // ConversationOverview provides a summary of a conversation.
 type ConversationOverview struct {
 	Conversation
+	SystemPrompt *Message `json:"system_prompt,omitzero"`
 	FirstMessage *Message `json:"first_message,omitzero"`
 }
 

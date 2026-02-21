@@ -7,6 +7,7 @@ export type ConversationOverview = {
   created_at: string
   request_type: string
   metadata?: Record<string, any>
+  system_prompt?: Message
   first_message?: Message
 }
 
