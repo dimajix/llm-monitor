@@ -86,6 +86,9 @@ func (oi *GenerateInterceptor) RequestInterceptor(req *http.Request, state inter
 		ollamaState.request = generateReq
 	}
 
+	// Store available request information
+	oi.saveLog(ollamaState)
+
 	// Replace the request body with the original content
 	req.Body = io.NopCloser(bytes.NewBuffer(body))
 

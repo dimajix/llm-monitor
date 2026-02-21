@@ -90,6 +90,9 @@ func (oi *ChatInterceptor) RequestInterceptor(req *http.Request, state intercept
 		ollamaState.request = chatReq
 	}
 
+	// Store available request information
+	oi.saveLog(ollamaState)
+
 	// Create a new body reader
 	req.Body = io.NopCloser(bytes.NewBuffer(body))
 
