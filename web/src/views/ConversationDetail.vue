@@ -24,7 +24,7 @@
           <chat-message :message="m" full-size bubble>
             <template #append>
               <div class="d-flex align-center">
-                <v-tooltip v-if="(m.child_branch_ids?.length || 0) > 0" text="Switch branch from here">
+                <v-tooltip v-if="((m.child_branch_ids?.length || 0) > 0) || (m.branch_id !== currentBranchId)" text="Switch branch from here">
                   <template #activator="{ props }">
                     <v-btn v-bind="props" size="x-small" icon="$source-branch" color="secondary" variant="elevated" @click="openBranches(m)"></v-btn>
                   </template>
@@ -48,7 +48,7 @@
             <div class="text-body-2 mb-2">From message at {{ formatDate(selectedMessage.created_at) }}</div>
             <v-list density="compact">
               <v-list-item
-                v-for="bid in selectedMessage.child_branch_ids || []"
+                v-for="bid in availableBranches"
                 :key="bid"
                 :title="bid"
                 @click="switchBranch(bid)"
@@ -105,6 +105,12 @@ async function load() {
 const visibleMessages = computed(() => {
   if (!currentBranchId.value) return []
   return allMessages.value
+})
+
+const availableBranches = computed(() => {
+  if (!selectedMessage.value) return []
+  const branches = [selectedMessage.value.branch_id, ...(selectedMessage.value.child_branch_ids || [])]
+  return branches.filter(bid => bid !== currentBranchId.value)
 })
 
 function openBranches(m: Message) {
