@@ -143,6 +143,7 @@ func (oi *ChatInterceptor) ChunkInterceptor(chunk []byte, state interceptor2.Sta
 // OnComplete handles completion of the request
 func (oi *ChatInterceptor) OnComplete(state interceptor2.State) {
 	ollamaState, _ := state.(*chatState)
+	ollamaState.endTime = time.Now()
 
 	logrus.Printf("[%s] Request completed for model: %s", oi.Name, ollamaState.response.Model)
 	oi.logRequestResponse(ollamaState)
@@ -153,6 +154,7 @@ func (oi *ChatInterceptor) OnComplete(state interceptor2.State) {
 // OnError handles errors during request processing
 func (oi *ChatInterceptor) OnError(state interceptor2.State, err error) {
 	ollamaState, _ := state.(*chatState)
+	ollamaState.endTime = time.Now()
 	logrus.WithError(err).Warningf("[%s] Error occurred", oi.Name)
 	oi.logRequestResponse(ollamaState)
 
@@ -175,6 +177,13 @@ func (oi *ChatInterceptor) saveLog(ollamaState *chatState) {
 		for i, m := range ollamaState.request.Messages {
 			history[i] = storage.SimpleMessage{Role: m.Role, Content: m.Content, Model: ollamaState.request.Model, ClientHost: ollamaState.clientHost}
 		}
+		var evalDuration time.Duration
+		if ollamaState.response.EvalDuration > 0 {
+			evalDuration = time.Duration(ollamaState.response.EvalDuration)
+		} else if !ollamaState.endTime.IsZero() {
+			evalDuration = ollamaState.endTime.Sub(ollamaState.startTime)
+		}
+
 		assistantMsg := storage.SimpleMessage{
 			Role:               ollamaState.response.Message.Role,
 			Content:            ollamaState.response.Message.Content,
@@ -182,7 +191,7 @@ func (oi *ChatInterceptor) saveLog(ollamaState *chatState) {
 			PromptTokens:       ollamaState.response.PromptEvalCount,
 			CompletionTokens:   ollamaState.response.EvalCount,
 			PromptEvalDuration: time.Duration(ollamaState.response.PromptEvalDuration),
-			EvalDuration:       time.Duration(ollamaState.response.EvalDuration),
+			EvalDuration:       evalDuration,
 			UpstreamHost:       ollamaState.upstreamHost,
 		}
 

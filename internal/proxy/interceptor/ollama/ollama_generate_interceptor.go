@@ -151,6 +151,7 @@ func (oi *GenerateInterceptor) OnComplete(state interceptor2.State) {
 // OnError is called when an error occurs
 func (oi *GenerateInterceptor) OnError(state interceptor2.State, err error) {
 	ollamaState, _ := state.(*generateState)
+	ollamaState.endTime = time.Now()
 	logrus.WithError(err).Warningf("[%s] Error occurred: %v", oi.Name, err)
 	logrus.Printf("[%s] Prompt: %s", oi.Name, ollamaState.request.Prompt)
 	logrus.Printf("[%s] Response: %s", oi.Name, ollamaState.response.Response)
@@ -166,6 +167,13 @@ func (oi *GenerateInterceptor) saveLog(ollamaState *generateState) {
 		history := []storage.SimpleMessage{
 			{Role: "user", Content: ollamaState.request.Prompt, Model: ollamaState.request.Model, ClientHost: ollamaState.clientHost},
 		}
+		var evalDuration time.Duration
+		if ollamaState.response.EvalDuration > 0 {
+			evalDuration = time.Duration(ollamaState.response.EvalDuration)
+		} else if !ollamaState.endTime.IsZero() {
+			evalDuration = ollamaState.endTime.Sub(ollamaState.startTime)
+		}
+
 		assistantMsg := storage.SimpleMessage{
 			Role:               "assistant",
 			Content:            ollamaState.response.Response,
@@ -173,7 +181,7 @@ func (oi *GenerateInterceptor) saveLog(ollamaState *generateState) {
 			PromptTokens:       ollamaState.response.PromptEvalCount,
 			CompletionTokens:   ollamaState.response.EvalCount,
 			PromptEvalDuration: time.Duration(ollamaState.response.PromptEvalDuration),
-			EvalDuration:       time.Duration(ollamaState.response.EvalDuration),
+			EvalDuration:       evalDuration,
 			UpstreamHost:       ollamaState.upstreamHost,
 		}
 

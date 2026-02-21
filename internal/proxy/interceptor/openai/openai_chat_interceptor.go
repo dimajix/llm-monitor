@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	interceptor2 "llm-monitor/internal/proxy/interceptor"
 	"llm-monitor/internal/storage"
@@ -27,9 +28,10 @@ type chatMessage struct {
 
 // chatRequest represents the structure of an OpenAI chat request
 type chatRequest struct {
-	Model    string        `json:"model"`
-	Messages []chatMessage `json:"messages"`
-	Stream   bool          `json:"stream"`
+	Model         string         `json:"model"`
+	Messages      []chatMessage  `json:"messages"`
+	Stream        bool           `json:"stream"`
+	StreamOptions *streamOptions `json:"stream_options,omitzero"`
 }
 
 // chatResponseChoice represents a choice in an OpenAI chat response
@@ -54,7 +56,11 @@ type chatResponse struct {
 	Created int64                `json:"created"`
 	Model   string               `json:"model"`
 	Choices []chatResponseChoice `json:"choices"`
-	Usage   chatUsage            `json:"usage"`
+	Usage   chatUsage            `json:"usage,omitzero"`
+}
+
+type streamOptions struct {
+	IncludeUsage bool `json:"include_usage"`
 }
 
 // chatState holds the state information for OpenAI requests
@@ -62,6 +68,7 @@ type chatState struct {
 	request      chatRequest
 	response     chatResponse
 	startTime    time.Time
+	endTime      time.Time
 	statusCode   int
 	clientHost   string
 	upstreamHost string
@@ -97,6 +104,23 @@ func (oi *ChatInterceptor) RequestInterceptor(req *http.Request, state intercept
 	if err := json.Unmarshal(body, &chatReq); err != nil {
 		logrus.WithError(err).Warningf("[%s] Warning: Could not parse request body", oi.Name)
 	} else {
+		// Always set include_usage to true if streaming is requested
+		if chatReq.Stream {
+			if chatReq.StreamOptions == nil {
+				chatReq.StreamOptions = &streamOptions{}
+			}
+			chatReq.StreamOptions.IncludeUsage = true
+
+			// Marshal the modified request back to JSON
+			newBody, err := json.Marshal(chatReq)
+			if err != nil {
+				logrus.WithError(err).Errorf("[%s] Error: Could not marshal modified request body", oi.Name)
+			} else {
+				body = newBody
+				req.ContentLength = int64(len(body))
+				req.Header.Set("Content-Length", fmt.Sprint(len(body)))
+			}
+		}
 		openAIState.request = chatReq
 	}
 
@@ -189,6 +213,8 @@ func (oi *ChatInterceptor) ChunkInterceptor(chunk []byte, state interceptor2.Sta
 func (oi *ChatInterceptor) OnComplete(state interceptor2.State) {
 	openAIState, _ := state.(*chatState)
 
+	openAIState.endTime = time.Now()
+
 	logrus.Printf("[%s] Request completed for model: %s", oi.Name, openAIState.request.Model)
 	oi.logRequestResponse(openAIState)
 
@@ -198,6 +224,7 @@ func (oi *ChatInterceptor) OnComplete(state interceptor2.State) {
 // OnError handles errors during request processing
 func (oi *ChatInterceptor) OnError(state interceptor2.State, err error) {
 	openAIState, _ := state.(*chatState)
+	openAIState.endTime = time.Now()
 	logrus.WithError(err).Warningf("[%s] Error occurred", oi.Name)
 	oi.logRequestResponse(openAIState)
 
@@ -238,6 +265,7 @@ func (oi *ChatInterceptor) saveLog(openAIState *chatState) {
 				Model:            openAIState.response.Model,
 				PromptTokens:     openAIState.response.Usage.PromptTokens,
 				CompletionTokens: openAIState.response.Usage.CompletionTokens,
+				EvalDuration:     openAIState.endTime.Sub(openAIState.startTime),
 				UpstreamHost:     openAIState.upstreamHost,
 			}
 			if assistantMsg.Role == "" {
