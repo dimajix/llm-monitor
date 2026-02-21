@@ -34,15 +34,9 @@
           <div class="bubble-body">
             <div class="message-text" :class="{ 'full-size': fullSize }" v-html="renderedContent"></div>
 
-            <div v-if="hasMetadata" class="bubble-footer mt-2 pt-1 d-flex flex-wrap align-center">
-              <v-chip v-if="message.prompt_tokens || message.completion_tokens" class="mr-1 mb-1" variant="text" color="grey">
-                <v-icon start icon="$memory" size="12"></v-icon>
-                {{ message.prompt_tokens || 0 }} / {{ message.completion_tokens || 0 }} tokens
-              </v-chip>
-              <v-chip v-if="message.prompt_eval_duration || message.eval_duration" class="mr-1 mb-1" variant="text" color="grey">
-                <v-icon start icon="$timer-outline" size="12"></v-icon>
-                {{ formattedDurations }}
-              </v-chip>
+            <div v-if="hasMetadata" class="bubble-footer mt-2 pt-1 d-flex flex-wrap align-center text-caption text-grey">
+              <v-icon start icon="$information-outline" size="12" class="mr-1"></v-icon>
+              {{ formattedMetrics }}
             </div>
           </div>
 
@@ -115,10 +109,6 @@ const emit = defineEmits<{
   (e: 'click', message: Message): void
 }>()
 
-const roleInitial = computed(() => {
-  return props.message.role ? props.message.role[0].toUpperCase() : '?'
-})
-
 const avatarColor = computed(() => {
   if (props.message.role === 'user') return 'primary'
   if (props.message.role === 'assistant') return 'teal-lighten-1'
@@ -151,11 +141,31 @@ function formatDuration(ns?: number): string | null {
   return `${m}m ${rs}s`
 }
 
-const formattedDurations = computed(() => {
-  const prompt = formatDuration(props.message.prompt_eval_duration)
-  const gen = formatDuration(props.message.eval_duration)
-  if (prompt && gen) return `prompt ${prompt} / output ${gen}`
-  return prompt ? `prompt ${prompt}` : gen ? `output ${gen}` : ''
+function calculateTps(tokens?: number, ns?: number): string | null {
+  if (!tokens || !ns || ns <= 0) return null
+  const s = ns / 1e9
+  const tps = tokens / s
+  return `${tps.toFixed(1)} t/s`
+}
+
+const formattedMetrics = computed(() => {
+  const parts: string[] = []
+
+  if (props.message.prompt_tokens || props.message.prompt_eval_duration) {
+    const tokens = props.message.prompt_tokens || 0
+    const duration = formatDuration(props.message.prompt_eval_duration) || '0.0sec'
+    const tps = calculateTps(props.message.prompt_tokens, props.message.prompt_eval_duration) || '0.0 t/s'
+    parts.push(`Prompt ${tokens} toks / ${duration} / ${tps}`)
+  }
+
+  if (props.message.completion_tokens || props.message.eval_duration) {
+    const tokens = props.message.completion_tokens || 0
+    const duration = formatDuration(props.message.eval_duration) || '0.0sec'
+    const tps = calculateTps(props.message.completion_tokens, props.message.eval_duration) || '0.0 t/s'
+    parts.push(`Response ${tokens} toks / ${duration} / ${tps}`)
+  }
+
+  return parts.join(' — ')
 })
 
 function handleClick() {
