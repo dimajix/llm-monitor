@@ -21,6 +21,7 @@ type ConversationOverview struct {
 	Conversation
 	SystemPrompt *Message `json:"system_prompt,omitzero"`
 	FirstMessage *Message `json:"first_message,omitzero"`
+	BranchCount  int      `json:"branch_count"`
 }
 
 // Branch represents a path within a conversation.

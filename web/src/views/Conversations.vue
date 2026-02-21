@@ -22,6 +22,18 @@
               @click="goDetail(c.id)"
             >
               <template #append-info>
+                <v-tooltip v-if="c.branch_count > 1" text="Branches present">
+                  <template #activator="{ props }">
+                    <v-chip
+                      color="primary"
+                      inline
+                      class="ml-2"
+                    >
+                      <v-icon icon="$source-branch" size="small"></v-icon>
+                      {{ c.branch_count }}
+                    </v-chip>
+                  </template>
+                </v-tooltip>
                 <v-tooltip v-if="c.system_prompt" text="System prompt present">
                   <template #activator="{ props }">
                     <v-icon v-bind="props" size="small" color="grey" class="ml-2" icon="$robot-industrial"></v-icon>

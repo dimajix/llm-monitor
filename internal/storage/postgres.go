@@ -289,8 +289,12 @@ func (s *PostgresStorage) ListConversations(ctx context.Context, p Pagination) (
 	query := `
 		SELECT c.id, c.created_at, c.request_type, c.metadata,
 	   			m1.id, m1.conversation_id, m1.branch_id, m1.role, m1.content, m1.model, m1.sequence_number, m1.created_at, m1.child_branch_ids, m1.upstream_status_code, m1.upstream_error, m1.prompt_tokens, m1.completion_tokens, m1.prompt_eval_duration, m1.eval_duration, m1.parent_message_id, m1.client_host, m1.upstream_host, m1.metadata,
-	   			m2.id, m2.conversation_id, m2.branch_id, m2.role, m2.content, m2.model, m2.sequence_number, m2.created_at, m2.child_branch_ids, m2.upstream_status_code, m2.upstream_error, m2.prompt_tokens, m2.completion_tokens, m2.prompt_eval_duration, m2.eval_duration, m2.parent_message_id, m2.client_host, m2.upstream_host, m2.metadata
+	   			m2.id, m2.conversation_id, m2.branch_id, m2.role, m2.content, m2.model, m2.sequence_number, m2.created_at, m2.child_branch_ids, m2.upstream_status_code, m2.upstream_error, m2.prompt_tokens, m2.completion_tokens, m2.prompt_eval_duration, m2.eval_duration, m2.parent_message_id, m2.client_host, m2.upstream_host, m2.metadata,
+	   			COALESCE(b.branch_count, 0)
 		FROM conversations c
+		LEFT JOIN LATERAL (
+			SELECT COUNT(*) as branch_count FROM branches b WHERE b.conversation_id = c.id
+		) b ON true
 		LEFT JOIN LATERAL (
 			SELECT * FROM messages m 
 			WHERE m.conversation_id = c.id AND m.role != 'system'
@@ -331,15 +335,18 @@ func (s *PostgresStorage) ListConversations(ctx context.Context, p Pagination) (
 		var m2Status, m2PromptTokens, m2CompletionTokens sql.NullInt32
 		var m2PromptEvalDuration, m2EvalDuration sql.NullInt64
 		var m2Metadata []byte
+		var branchCount int
 
 		err := rows.Scan(
 			&o.ID, &o.CreatedAt, &o.RequestType, &metadata,
 			&m1ID, &m1ConvID, &m1BranchID, &m1Role, &m1Content, &m1Model, &m1Seq, &m1CreatedAt, pq.Array(&m1ChildBranchIDs), &m1Status, &m1Error, &m1PromptTokens, &m1CompletionTokens, &m1PromptEvalDuration, &m1EvalDuration, &m1ParentID, &m1ClientHost, &m1UpstreamHost, &m1Metadata,
 			&m2ID, &m2ConvID, &m2BranchID, &m2Role, &m2Content, &m2Model, &m2Seq, &m2CreatedAt, pq.Array(&m2ChildBranchIDs), &m2Status, &m2Error, &m2PromptTokens, &m2CompletionTokens, &m2PromptEvalDuration, &m2EvalDuration, &m2ParentID, &m2ClientHost, &m2UpstreamHost, &m2Metadata,
+			&branchCount,
 		)
 		if err != nil {
 			return nil, err
 		}
+		o.BranchCount = branchCount
 
 		if metadata != nil {
 			if err := json.Unmarshal(metadata, &o.Metadata); err != nil {
@@ -475,14 +482,15 @@ func (s *PostgresStorage) SearchMessages(ctx context.Context, query string, p Pa
 	return s.scanMessages(rows)
 }
 
-// GetConversationMessages retrieves all messages for a given conversation ID.
+// GetConversationMessages retrieves messages for the initial branch of a given conversation ID.
 // Returns a slice of Message and an error.
 func (s *PostgresStorage) GetConversationMessages(ctx context.Context, conversationID uuid.UUID) ([]Message, error) {
 	query := `
-		SELECT id, conversation_id, branch_id, role, content, model, sequence_number, created_at, child_branch_ids, upstream_status_code, upstream_error, prompt_tokens, completion_tokens, prompt_eval_duration, eval_duration, parent_message_id, client_host, upstream_host, metadata
-		FROM messages
-		WHERE conversation_id = $1
-		ORDER BY sequence_number ASC, created_at ASC
+		SELECT m.id, m.conversation_id, m.branch_id, m.role, m.content, m.model, m.sequence_number, m.created_at, m.child_branch_ids, m.upstream_status_code, m.upstream_error, m.prompt_tokens, m.completion_tokens, m.prompt_eval_duration, m.eval_duration, m.parent_message_id, m.client_host, m.upstream_host, m.metadata
+		FROM messages m
+		JOIN branches b ON m.branch_id = b.id
+		WHERE m.conversation_id = $1 AND b.parent_branch_id IS NULL
+		ORDER BY m.sequence_number ASC, m.created_at ASC
 	`
 	rows, err := s.db.QueryContext(ctx, query, conversationID)
 	if err != nil {

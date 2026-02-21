@@ -9,6 +9,7 @@ export type ConversationOverview = {
   metadata?: Record<string, any>
   system_prompt?: Message
   first_message?: Message
+  branch_count: number
 }
 
 export type ConversationMessages = {

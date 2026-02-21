@@ -12,7 +12,7 @@
           <div class="text-subtitle-2 opacity-70">
             Created at: {{ formatDate(conversation?.created_at) }}
           </div>
-          <div class="text-subtitle-2 opacity-70">Branch: {{ currentBranchId || mainBranchId || 'unknown' }}</div>
+          <div class="text-subtitle-2 opacity-70">Branch: {{ currentBranchId || 'unknown' }}</div>
         </div>
         <v-spacer />
         <v-progress-circular v-if="loading" indeterminate size="24" color="primary"></v-progress-circular>
@@ -79,7 +79,6 @@ const props = defineProps<{
 const loading = ref(false)
 const allMessages = ref<Message[]>([])
 const conversation = ref<ConversationMessages['conversation'] | null>(null)
-const mainBranchId = ref<string | null>(null)
 const currentBranchId = ref<string | null>(null)
 
 const branchesDialog = ref(false)
@@ -91,24 +90,12 @@ async function load() {
     const data = await getConversationMessages(props.id)
     allMessages.value = data.messages
     conversation.value = data.conversation
-    // Pick main branch as the one with most messages
-    const counts = new Map<string, number>()
-    for (const m of data.messages) counts.set(m.branch_id, (counts.get(m.branch_id) || 0) + 1)
-    let max = 0
-    let maxId: string | null = null
-    counts.forEach((v, k) => {
-      if (v > max) {
-        max = v
-        maxId = k
-      }
-    })
-    mainBranchId.value = maxId
 
     // If initialBranchId is provided, load its full history.
     if (props.initialBranchId) {
       await switchBranch(props.initialBranchId)
-    } else if (!currentBranchId.value) {
-      currentBranchId.value = maxId
+    } else if (!currentBranchId.value && data.messages.length > 0) {
+      currentBranchId.value = data.messages[0].branch_id
     }
   } finally {
     loading.value = false
@@ -117,14 +104,14 @@ async function load() {
 
 const visibleMessages = computed(() => {
   if (!currentBranchId.value) return []
-  return allMessages.value.filter((m) => m.branch_id === currentBranchId.value).sort((a, b) => a.sequence_number - b.sequence_number)
+  return allMessages.value
 })
 
 function openBranches(m: Message) {
   selectedMessage.value = m
   branchesDialog.value = true
 }
-function formatDate(dt:number | string | Date) : string|null {
+function formatDate(dt:number | string | Date | undefined) : string|null {
   if (!dt) return ''
   const d = new Date(dt)
   return d.toLocaleString()
@@ -137,7 +124,7 @@ async function switchBranch(branchId: string) {
   try {
     const { messages } = await getBranchHistory(branchId)
     // Replace/merge messages for this branch
-    allMessages.value = allMessages.value.filter((m) => m.branch_id !== branchId).concat(messages)
+    allMessages.value = messages
     currentBranchId.value = branchId
   } finally {
     loading.value = false
