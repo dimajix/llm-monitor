@@ -9,14 +9,22 @@
 
       <div class="message-bubble-content">
         <div v-if="!bubble" class="list-layout d-flex align-start w-100">
-          <v-avatar size="28" color="grey-lighten-2" class="mr-3 mt-1">
-            <span class="text-caption">{{ roleInitial }}</span>
-          </v-avatar>
+          <v-tooltip v-if="requestType === 'chat' || requestType === 'generate'" :text="'Request Type: ' + requestType">
+            <template #activator="{ props }">
+              <v-icon v-bind="props" class="ml-2" :icon="'$' + requestType" size="20" color="info"></v-icon>
+            </template>
+          </v-tooltip>
+          <v-tooltip v-else-if="requestType" :text="'Request Type: ' + requestType">
+            <template #activator="{ props }">
+              <v-chip v-bind="props" class="ml-2" size="small" variant="flat" color="info">
+                {{ requestType }}
+              </v-chip>
+            </template>
+          </v-tooltip>
           <div class="flex-grow-1 min-width-0">
             <div class="d-flex align-center justify-space-between mb-1">
               <div>
                 <span class="text-medium-emphasis text-caption">{{ formattedDate }} </span>
-                <v-chip v-if="requestType" class="ml-2" size="small" variant="flat" color="info">{{ requestType }}</v-chip>
                 <v-chip class="ml-2" size="small" variant="flat">{{ message.role }}</v-chip>
                 <v-chip v-if="message.model" class="ml-1" size="small" variant="outlined" color="secondary">{{ message.model }}</v-chip>
                 <slot name="append-info"></slot>
@@ -29,7 +37,18 @@
         <div v-else class="bubble-layout">
           <div class="bubble-header d-flex align-center mb-1">
             <span class="text-medium-emphasis text-caption">{{ formattedDate }} </span>
-            <v-chip v-if="requestType" class="ml-2" size="small" variant="flat" color="info">{{ requestType }}</v-chip>
+            <v-tooltip v-if="requestType === 'chat' || requestType === 'generate'" :text="'Request Type: ' + requestType">
+              <template #activator="{ props }">
+                <v-icon v-bind="props" class="ml-2" :icon="'$' + requestType" size="20" color="info"></v-icon>
+              </template>
+            </v-tooltip>
+            <v-tooltip v-else-if="requestType" :text="'Request Type: ' + requestType">
+              <template #activator="{ props }">
+                <v-chip v-bind="props" class="ml-2" size="small" variant="flat" color="info">
+                  {{ requestType }}
+                </v-chip>
+              </template>
+            </v-tooltip>
             <v-chip class="ml-2" size="small" variant="flat">{{ message.role }}</v-chip>
             <v-chip v-if="message.model" class="ml-1" size="small" variant="outlined" color="secondary">{{ message.model }}</v-chip>
           </div>

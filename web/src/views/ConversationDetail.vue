@@ -7,7 +7,18 @@
         <div>
           <h2 class="text-h6">
             Conversation {{ id }}
-            <v-chip v-if="conversation?.request_type" class="ml-2" size="small" variant="flat" color="info">{{ conversation.request_type }}</v-chip>
+            <v-tooltip v-if="conversation?.request_type === 'chat' || conversation?.request_type === 'generate'" :text="'Request Type: ' + conversation?.request_type">
+              <template #activator="{ props }">
+                <v-icon v-bind="props" class="ml-2" :icon="'$' + conversation?.request_type" size="20" color="info"></v-icon>
+              </template>
+            </v-tooltip>
+            <v-tooltip v-else-if="conversation?.request_type" :text="'Request Type: ' + conversation?.request_type">
+              <template #activator="{ props }">
+                <v-chip v-bind="props" class="ml-2" size="small" variant="flat" color="info">
+                  {{ conversation?.request_type }}
+                </v-chip>
+              </template>
+            </v-tooltip>
           </h2>
           <div class="text-subtitle-2 opacity-70">Branch: {{ currentBranchId || mainBranchId || 'unknown' }}</div>
         </div>
