@@ -22,6 +22,9 @@ proxy:
     - endpoint: "/api/chat"
       method: "POST"
       interceptor: "OllamaChatInterceptor"
+    - endpoint: "/v1/chat/completions"
+      method: "POST"
+      interceptor: "OpenAIChatInterceptor"
 
 api:
   port: 8081

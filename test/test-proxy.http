@@ -136,3 +136,86 @@ Content-Type: application/json
 ###
 GET http://localhost:8080/api/tags
 Content-Type: application/json
+
+
+###
+POST http://localhost:11434/v1/chat/completions
+Authorization: Bearer YOUR_API_KEY_HERE
+Content-Type: application/json
+
+{
+  "model": "qwen3-coder:30b",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant."
+    },
+    {
+      "role": "user",
+      "content": "Hello, how are you?"
+    }
+  ],
+  "temperature": 0.7
+}
+
+###
+POST http://localhost:8080/v1/chat/completions
+Authorization: Bearer YOUR_API_KEY_HERE
+Content-Type: application/json
+
+{
+  "model": "qwen3-coder:30b",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant."
+    },
+    {
+      "role": "user",
+      "content": "Hello, how are you?"
+    }
+  ],
+  "temperature": 0.7
+}
+
+###
+POST http://localhost:11434/v1/chat/completions
+Authorization: Bearer YOUR_API_KEY_HERE
+Content-Type: application/json
+
+{
+  "model": "qwen3-coder:30b",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant."
+    },
+    {
+      "role": "user",
+      "content": "Hello, how are you?"
+    }
+  ],
+  "stream": true,
+  "temperature": 0.7
+}
+
+###
+POST http://localhost:8080/v1/chat/completions
+Authorization: Bearer YOUR_API_KEY_HERE
+Content-Type: application/json
+
+{
+  "model": "qwen3-coder:30b",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant and very polite."
+    },
+    {
+      "role": "user",
+      "content": "Hello, how are you?"
+    }
+  ],
+  "stream": true,
+  "temperature": 0.7
+}

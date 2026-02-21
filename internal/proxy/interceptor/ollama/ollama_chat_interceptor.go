@@ -145,10 +145,7 @@ func (oi *ChatInterceptor) OnComplete(state interceptor2.State) {
 	ollamaState, _ := state.(*chatState)
 
 	logrus.Printf("[%s] Request completed for model: %s", oi.Name, ollamaState.response.Model)
-	for _, m := range ollamaState.request.Messages {
-		logrus.Printf("[%s] Request [%s]: %s", oi.Name, m.Role, m.Content)
-	}
-	logrus.Printf("[%s] Response [%s]: %s", oi.Name, ollamaState.response.Message.Role, ollamaState.response.Message.Content)
+	oi.logRequestResponse(ollamaState)
 
 	oi.saveLog(ollamaState)
 }
@@ -157,12 +154,16 @@ func (oi *ChatInterceptor) OnComplete(state interceptor2.State) {
 func (oi *ChatInterceptor) OnError(state interceptor2.State, err error) {
 	ollamaState, _ := state.(*chatState)
 	logrus.WithError(err).Warningf("[%s] Error occurred", oi.Name)
+	oi.logRequestResponse(ollamaState)
+
+	oi.saveLog(ollamaState)
+}
+
+func (oi *ChatInterceptor) logRequestResponse(ollamaState *chatState) {
 	for _, m := range ollamaState.request.Messages {
 		logrus.Printf("[%s] Request [%s]: %s", oi.Name, m.Role, m.Content)
 	}
 	logrus.Printf("[%s] Response [%s]: %s", oi.Name, ollamaState.response.Message.Role, ollamaState.response.Message.Content)
-
-	oi.saveLog(ollamaState)
 }
 
 func (oi *ChatInterceptor) saveLog(ollamaState *chatState) {

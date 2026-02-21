@@ -5,6 +5,7 @@ import (
 	"llm-monitor/internal/config"
 	interceptor2 "llm-monitor/internal/proxy/interceptor"
 	ollama2 "llm-monitor/internal/proxy/interceptor/ollama"
+	openai2 "llm-monitor/internal/proxy/interceptor/openai"
 	"llm-monitor/internal/storage"
 	"net/http"
 	"time"
@@ -92,6 +93,14 @@ func CreateInterceptor(name string, store storage.Storage, timeout time.Duration
 		}, nil
 	case "OllamaGenerateInterceptor":
 		return &ollama2.GenerateInterceptor{
+			SavingInterceptor: interceptor2.SavingInterceptor{
+				Name:    name,
+				Storage: store,
+				Timeout: timeout,
+			},
+		}, nil
+	case "OpenAIChatInterceptor":
+		return &openai2.ChatInterceptor{
 			SavingInterceptor: interceptor2.SavingInterceptor{
 				Name:    name,
 				Storage: store,
