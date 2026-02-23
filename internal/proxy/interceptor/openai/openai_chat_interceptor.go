@@ -315,14 +315,31 @@ func (oi *ChatInterceptor) saveLog(openAIState *chatState) {
 		ctx, cancel := context.WithTimeout(context.Background(), oi.Timeout)
 		defer cancel()
 
+		tools := make([]storage.Tool, len(openAIState.request.Tools))
+		for i, t := range openAIState.request.Tools {
+			tools[i] = storage.Tool{
+				Name:        t.Function.Name,
+				Description: t.Function.Description,
+				Parameters:  t.Function.Parameters,
+			}
+		}
+
 		history := make([]storage.SimpleMessage, len(openAIState.request.Messages))
 		for i, m := range openAIState.request.Messages {
 			metadata := make(map[string]any)
-			if len(m.ToolCalls) > 0 {
-				metadata["tool_calls"] = m.ToolCalls
-			}
-			if m.ToolCallID != "" {
-				metadata["tool_call_id"] = m.ToolCallID
+			toolCalls := make([]storage.ToolCall, len(m.ToolCalls))
+			for j, tc := range m.ToolCalls {
+				toolCalls[j] = storage.ToolCall{
+					ID:   tc.ID,
+					Type: tc.Type,
+					Function: struct {
+						Name      string `json:"name"`
+						Arguments string `json:"arguments"`
+					}{
+						Name:      tc.Function.Name,
+						Arguments: tc.Function.Arguments,
+					},
+				}
 			}
 
 			history[i] = storage.SimpleMessage{
@@ -331,6 +348,9 @@ func (oi *ChatInterceptor) saveLog(openAIState *chatState) {
 				Model:      openAIState.request.Model,
 				ClientHost: openAIState.clientHost,
 				Metadata:   metadata,
+				Tools:      tools,
+				ToolCalls:  toolCalls,
+				ToolCallID: m.ToolCallID,
 			}
 		}
 
@@ -339,8 +359,19 @@ func (oi *ChatInterceptor) saveLog(openAIState *chatState) {
 		if len(openAIState.response.Choices) > 0 {
 			choice := openAIState.response.Choices[0]
 			metadata := make(map[string]any)
-			if len(choice.Message.ToolCalls) > 0 {
-				metadata["tool_calls"] = choice.Message.ToolCalls
+			toolCalls := make([]storage.ToolCall, len(choice.Message.ToolCalls))
+			for j, tc := range choice.Message.ToolCalls {
+				toolCalls[j] = storage.ToolCall{
+					ID:   tc.ID,
+					Type: tc.Type,
+					Function: struct {
+						Name      string `json:"name"`
+						Arguments string `json:"arguments"`
+					}{
+						Name:      tc.Function.Name,
+						Arguments: tc.Function.Arguments,
+					},
+				}
 			}
 
 			assistantMsg = storage.SimpleMessage{
@@ -352,6 +383,8 @@ func (oi *ChatInterceptor) saveLog(openAIState *chatState) {
 				EvalDuration:     openAIState.endTime.Sub(openAIState.startTime),
 				UpstreamHost:     openAIState.upstreamHost,
 				Metadata:         metadata,
+				Tools:            tools,
+				ToolCalls:        toolCalls,
 			}
 			if assistantMsg.Role == "" {
 				assistantMsg.Role = "assistant"

@@ -47,6 +47,36 @@ CREATE TABLE messages (
     UNIQUE (branch_id, sequence_number)
 );
 
+-- 5. Tools Table: Stores reusable tool definitions
+CREATE TABLE tools (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    parameters JSONB, -- The JSON schema of the tool parameters
+    hash VARCHAR(64) NOT NULL UNIQUE
+);
+
+-- 6. Message Tools Table: Links tool definitions to specific messages
+CREATE TABLE message_tools (
+    message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    tool_id UUID NOT NULL REFERENCES tools(id) ON DELETE CASCADE,
+    PRIMARY KEY (message_id, tool_id)
+);
+
+CREATE INDEX idx_message_tools_message_id ON message_tools(message_id);
+
+-- 7. Message Tool Calls Table: Actual tool calls made by the assistant
+CREATE TABLE message_tool_calls (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    tool_call_id VARCHAR(255) NOT NULL, -- The ID provided by the LLM (e.g., call_abc123)
+    type VARCHAR(50) NOT NULL,          -- e.g., 'function'
+    function_name VARCHAR(255) NOT NULL,
+    function_arguments TEXT NOT NULL    -- The JSON string of arguments
+);
+
+CREATE INDEX idx_tool_calls_message_id ON message_tool_calls(message_id);
+
 -- Add foreign key constraint to branches for parent_message_id
 ALTER TABLE branches 
 ADD CONSTRAINT fk_parent_message 
@@ -65,4 +95,4 @@ CREATE TABLE IF NOT EXISTS schema_version (
     applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-INSERT INTO schema_version (version) VALUES (8) ON CONFLICT (version) DO UPDATE SET version = 8;
+INSERT INTO schema_version (version) VALUES (9) ON CONFLICT (version) DO UPDATE SET version = 9;

@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"encoding/json"
 	"llm-monitor/internal/config"
 	"time"
 
@@ -33,6 +34,24 @@ type Branch struct {
 	CreatedAt       time.Time  `json:"created_at"`
 }
 
+// Tool represents a reusable tool definition.
+type Tool struct {
+	ID          uuid.UUID       `json:"id"`
+	Name        string          `json:"name"`
+	Description string          `json:"description,omitzero"`
+	Parameters  json.RawMessage `json:"parameters,omitzero"`
+}
+
+// ToolCall represents an actual tool call in a message.
+type ToolCall struct {
+	ID       string `json:"id"`
+	Type     string `json:"type"`
+	Function struct {
+		Name      string `json:"name"`
+		Arguments string `json:"arguments"`
+	} `json:"function"`
+}
+
 // SimpleMessage represents a basic chat message with role and content.
 type SimpleMessage struct {
 	Role               string         `json:"role"`
@@ -45,6 +64,9 @@ type SimpleMessage struct {
 	ClientHost         string         `json:"client_host,omitzero"`
 	UpstreamHost       string         `json:"upstream_host,omitzero"`
 	Metadata           map[string]any `json:"metadata,omitzero"`
+	Tools              []Tool         `json:"tools,omitzero"`
+	ToolCalls          []ToolCall     `json:"tool_calls,omitzero"`
+	ToolCallID         string         `json:"tool_call_id,omitzero"`
 }
 
 // Message represents a single chat message.

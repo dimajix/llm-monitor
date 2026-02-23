@@ -84,7 +84,7 @@ func (si *SavingInterceptor) SaveToStorage(ctx context.Context, history []storag
 	}
 
 	// 4. Add the assistant response
-	if assistantMsg.Content != "" || statusCode != 0 {
+	if assistantMsg.Content != "" || len(assistantMsg.ToolCalls) > 0 || statusCode != 0 {
 		_, err := si.Storage.AddMessage(ctx, currentParentID, &storage.Message{
 			SimpleMessage:      assistantMsg,
 			UpstreamStatusCode: statusCode,

@@ -219,8 +219,35 @@ func (s *PostgresStorage) AddMessage(ctx context.Context, parentMessageID uuid.U
 	if err != nil {
 		return nil, err
 	}
-	if err := json.Unmarshal(metadataJSON, &msg.Metadata); err != nil {
-		logrus.WithError(err).Warn("Failed to unmarshal message metadata")
+
+	for _, tool := range message.Tools {
+		toolHash := computeToolHash(tool)
+		var toolID uuid.UUID
+		err = tx.QueryRowContext(ctx,
+			"INSERT INTO tools (name, description, parameters, hash) VALUES ($1, $2, $3, $4) ON CONFLICT (hash) DO UPDATE SET hash = EXCLUDED.hash RETURNING id",
+			tool.Name, optional(tool.Description), tool.Parameters, toolHash,
+		).Scan(&toolID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to insert tool: %w", err)
+		}
+
+		_, err = tx.ExecContext(ctx,
+			"INSERT INTO message_tools (message_id, tool_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+			msg.ID, toolID,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to insert message tool: %w", err)
+		}
+	}
+
+	for _, tc := range message.ToolCalls {
+		_, err = tx.ExecContext(ctx,
+			"INSERT INTO message_tool_calls (message_id, tool_call_id, type, function_name, function_arguments) VALUES ($1, $2, $3, $4, $5)",
+			msg.ID, tc.ID, tc.Type, tc.Function.Name, tc.Function.Arguments,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to insert tool call: %w", err)
+		}
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -600,6 +627,41 @@ func (s *PostgresStorage) scanMessage(rows *sql.Rows) (*Message, error) {
 			logrus.WithError(err).Warn("Failed to unmarshal message metadata")
 		}
 	}
+
+	// Fetch tools
+	toolRows, err := s.db.QueryContext(context.Background(),
+		"SELECT t.id, t.name, t.description, t.parameters FROM tools t JOIN message_tools mt ON t.id = mt.tool_id WHERE mt.message_id = $1",
+		m.ID,
+	)
+	if err == nil {
+		defer toolRows.Close()
+		for toolRows.Next() {
+			var t Tool
+			var desc sql.NullString
+			if err := toolRows.Scan(&t.ID, &t.Name, &desc, &t.Parameters); err == nil {
+				if desc.Valid {
+					t.Description = desc.String
+				}
+				m.Tools = append(m.Tools, t)
+			}
+		}
+	}
+
+	// Fetch tool calls
+	tcRows, err := s.db.QueryContext(context.Background(),
+		"SELECT tool_call_id, type, function_name, function_arguments FROM message_tool_calls WHERE message_id = $1",
+		m.ID,
+	)
+	if err == nil {
+		defer tcRows.Close()
+		for tcRows.Next() {
+			var tc ToolCall
+			if err := tcRows.Scan(&tc.ID, &tc.Type, &tc.Function.Name, &tc.Function.Arguments); err == nil {
+				m.ToolCalls = append(m.ToolCalls, tc)
+			}
+		}
+	}
+
 	return &m, nil
 }
 
@@ -635,5 +697,13 @@ func computeHash(prevHash, role, content string) string {
 	h.Write([]byte(prevHash))
 	h.Write([]byte(role))
 	h.Write([]byte(content))
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+func computeToolHash(tool Tool) string {
+	h := sha256.New()
+	h.Write([]byte(tool.Name))
+	h.Write([]byte(tool.Description))
+	h.Write(tool.Parameters)
 	return hex.EncodeToString(h.Sum(nil))
 }
