@@ -10,7 +10,8 @@ LLM Monitor is a Go-based proxy server designed to intercept, monitor, and log i
 - **Persistence**: Logs conversations and messages to a PostgreSQL database.
 - **Web UI**: Modern, built-in web interface to browse, search, and visualize conversation histories (served by the API binary).
 - **Modular Interceptors**:
-    - `OllamaChatInterceptor`: Intercepts `/api/chat` requests and logs messages.
+    - `OpenAIChatInterceptor`: Intercepts `/v1/chat/completions` requests and logs messages in OpenAI format.
+    - `OllamaChatInterceptor`: Intercepts `/api/chat` requests and logs messages in Ollama format.
     - `OllamaGenerateInterceptor`: Intercepts `/api/generate` requests and logs prompts.
     - `LoggingInterceptor`: Simple logging of requests.
     - `CustomInterceptor` & `SimpleInterceptor`: Examples for custom implementations.
@@ -30,13 +31,60 @@ LLM Monitor is a Go-based proxy server designed to intercept, monitor, and log i
 
 The easiest way to get started is using Docker Compose, which sets up the proxy, the API/UI server, and a PostgreSQL database.
 
-1. Clone the repository.
-2. Run the services:
+1. **Clone the repository**.
+2. **Configure Upstream (Optional)**:
+   By default, it proxies to `http://localhost:11434` (Ollama). You can change this in `docker-compose.yml` or via the `UPSTREAM_URL` environment variable.
+3. **Run the services**:
    ```bash
-   docker-compose up -d
+   docker compose up -d
    ```
-3. The **Proxy** will be available at `http://localhost:8080`.
-4. The **Web UI** will be available at `http://localhost:8081`.
+4. **Access the services**:
+    - **Proxy**: `http://localhost:8080`
+    - **API / Web UI**: `http://localhost:8081`
+
+The first time you run `docker compose up`, the database will be initialized automatically.
+
+### Accessing the Web UI
+
+The Web UI provides a clean interface to explore your conversation history.
+1. Open your browser and navigate to `http://localhost:8081`.
+2. You will see a list of recent conversations.
+3. Click on a conversation to view the full message history, including system prompts, user messages, and assistant responses.
+4. Use the search bar to filter conversations by model name or message content.
+
+### Proxying OpenAI Compatible APIs
+
+LLM Monitor supports proxying OpenAI compatible chat completion endpoints. This allows you to monitor traffic from tools and SDKs that use the OpenAI format (like `openai-python`, `langchain`, etc.).
+
+1. **Configure the Interceptor**: Ensure your `config.yaml` has the `OpenAIChatInterceptor` configured for the `/v1/chat/completions` endpoint.
+   ```yaml
+   proxy:
+     intercepts:
+       - endpoint: "/v1/chat/completions"
+         method: "POST"
+         interceptor: "OpenAIChatInterceptor"
+   ```
+2. **Update your Client**: Point your OpenAI client to the LLM Monitor proxy instead of the original provider.
+   ```python
+   # Example in Python
+   from openai import OpenAI
+   client = OpenAI(
+       base_url="http://localhost:8080/v1",
+       api_key="your-api-key"
+   )
+   ```
+3. **View Logs**: All requests sent through this endpoint will now be captured and visible in the Web UI.
+
+### Proxying Ollama APIs
+
+For Ollama, the following endpoints are supported by default:
+- `/api/chat`: Monitored by `OllamaChatInterceptor`.
+- `/api/generate`: Monitored by `OllamaGenerateInterceptor`.
+
+Configure your Ollama client or environment variable:
+```bash
+export OLLAMA_HOST=http://localhost:8080
+```
 
 ### Building and Running Locally
 
