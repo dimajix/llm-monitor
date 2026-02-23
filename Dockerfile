@@ -1,4 +1,4 @@
-# Build web stage
+    # Build web stage
 FROM node:20-alpine AS web-builder
 WORKDIR /web
 COPY web/package*.json ./

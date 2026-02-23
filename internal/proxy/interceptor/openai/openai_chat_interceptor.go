@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	interceptor2 "llm-monitor/internal/proxy/interceptor"
+	"llm-monitor/internal/proxy/interceptor"
 	"llm-monitor/internal/storage"
 	"net/http"
 	"strings"
@@ -17,21 +17,60 @@ import (
 
 // ChatInterceptor intercepts chat messages between client and OpenAI compatible server
 type ChatInterceptor struct {
-	interceptor2.SavingInterceptor
+	interceptor.SavingInterceptor
 }
 
 // chatMessage represents an OpenAI chat message
 type chatMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role       string         `json:"role"`
+	Content    string         `json:"content,omitzero"`
+	ToolCalls  []chatToolCall `json:"tool_calls,omitzero"`
+	ToolCallID string         `json:"tool_call_id,omitzero"`
+}
+
+type chatToolCall struct {
+	ID       string           `json:"id"`
+	Type     string           `json:"type"`
+	Function chatToolFunction `json:"function"`
+}
+
+type chatToolFunction struct {
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"`
+}
+
+type chatToolDefinition struct {
+	Name        string          `json:"name"`
+	Description string          `json:"description,omitzero"`
+	Parameters  json.RawMessage `json:"parameters,omitzero"`
 }
 
 // chatRequest represents the structure of an OpenAI chat request
 type chatRequest struct {
-	Model         string         `json:"model"`
-	Messages      []chatMessage  `json:"messages"`
-	Stream        bool           `json:"stream"`
-	StreamOptions *streamOptions `json:"stream_options,omitzero"`
+	Model               string          `json:"model"`
+	Messages            []chatMessage   `json:"messages"`
+	Stream              bool            `json:"stream"`
+	StreamOptions       *streamOptions  `json:"stream_options,omitzero"`
+	Tools               []chatTool      `json:"tools,omitzero"`
+	ToolChoice          json.RawMessage `json:"tool_choice,omitzero"`
+	ParallelToolCalls   *bool           `json:"parallel_tool_calls,omitzero"`
+	ResponseFormat      json.RawMessage `json:"response_format,omitzero"`
+	User                string          `json:"user,omitzero"`
+	Seed                *int64          `json:"seed,omitzero"`
+	Temperature         *float64        `json:"temperature,omitzero"`
+	TopP                *float64        `json:"top_p,omitzero"`
+	N                   *int            `json:"n,omitzero"`
+	MaxTokens           *int            `json:"max_tokens,omitzero"`
+	MaxCompletionTokens *int            `json:"max_completion_tokens,omitzero"`
+	PresencePenalty     *float64        `json:"presence_penalty,omitzero"`
+	FrequencyPenalty    *float64        `json:"frequency_penalty,omitzero"`
+	LogitBias           map[string]int  `json:"logit_bias,omitzero"`
+	Stop                json.RawMessage `json:"stop,omitzero"`
+}
+
+type chatTool struct {
+	Type     string             `json:"type"`
+	Function chatToolDefinition `json:"function"`
 }
 
 // chatResponseChoice represents a choice in an OpenAI chat response
@@ -75,14 +114,14 @@ type chatState struct {
 }
 
 // CreateState creates a new state for the interceptor
-func (oi *ChatInterceptor) CreateState() interceptor2.State {
+func (oi *ChatInterceptor) CreateState() interceptor.State {
 	return &chatState{
 		startTime: time.Now(),
 	}
 }
 
 // RequestInterceptor intercepts the request to extract model and context information
-func (oi *ChatInterceptor) RequestInterceptor(req *http.Request, state interceptor2.State) error {
+func (oi *ChatInterceptor) RequestInterceptor(req *http.Request, state interceptor.State) error {
 	logrus.Printf("[%s] Intercepting request to %s", oi.Name, req.URL.Path)
 
 	// Read the request body
@@ -99,20 +138,23 @@ func (oi *ChatInterceptor) RequestInterceptor(req *http.Request, state intercept
 	openAIState.upstreamHost = req.Host
 	openAIState.clientHost = req.Header.Get("X-Forwarded-For")
 
-	// Parse the chat request
-	var chatReq chatRequest
-	if err := json.Unmarshal(body, &chatReq); err != nil {
-		logrus.WithError(err).Warningf("[%s] Warning: Could not parse request body", oi.Name)
+	// Parse the chat request into a generic map to avoid losing fields during modification
+	var chatReqMap map[string]any
+	if err := json.Unmarshal(body, &chatReqMap); err != nil {
+		logrus.WithError(err).Warningf("[%s] Warning: Could not parse request body into map", oi.Name)
 	} else {
 		// Always set include_usage to true if streaming is requested
-		if chatReq.Stream {
-			if chatReq.StreamOptions == nil {
-				chatReq.StreamOptions = &streamOptions{}
+		stream, _ := chatReqMap["stream"].(bool)
+		if stream {
+			streamOptions, ok := chatReqMap["stream_options"].(map[string]any)
+			if !ok {
+				streamOptions = make(map[string]any)
+				chatReqMap["stream_options"] = streamOptions
 			}
-			chatReq.StreamOptions.IncludeUsage = true
+			streamOptions["include_usage"] = true
 
 			// Marshal the modified request back to JSON
-			newBody, err := json.Marshal(chatReq)
+			newBody, err := json.Marshal(chatReqMap)
 			if err != nil {
 				logrus.WithError(err).Errorf("[%s] Error: Could not marshal modified request body", oi.Name)
 			} else {
@@ -121,6 +163,13 @@ func (oi *ChatInterceptor) RequestInterceptor(req *http.Request, state intercept
 				req.Header.Set("Content-Length", fmt.Sprint(len(body)))
 			}
 		}
+	}
+
+	// Also parse into the structured chatRequest for internal state and logging
+	var chatReq chatRequest
+	if err := json.Unmarshal(body, &chatReq); err != nil {
+		logrus.WithError(err).Warningf("[%s] Warning: Could not parse request body into struct", oi.Name)
+	} else {
 		openAIState.request = chatReq
 	}
 
@@ -134,14 +183,14 @@ func (oi *ChatInterceptor) RequestInterceptor(req *http.Request, state intercept
 }
 
 // ResponseInterceptor intercepts the response to extract response messages
-func (oi *ChatInterceptor) ResponseInterceptor(resp *http.Response, state interceptor2.State) error {
+func (oi *ChatInterceptor) ResponseInterceptor(resp *http.Response, state interceptor.State) error {
 	openAIState, _ := state.(*chatState)
 	openAIState.statusCode = resp.StatusCode
 	return nil
 }
 
 // ContentInterceptor intercepts content to extract response messages (non-streaming)
-func (oi *ChatInterceptor) ContentInterceptor(content []byte, state interceptor2.State) ([]byte, error) {
+func (oi *ChatInterceptor) ContentInterceptor(content []byte, state interceptor.State) ([]byte, error) {
 	openAIState, _ := state.(*chatState)
 
 	// Parse the response
@@ -156,7 +205,7 @@ func (oi *ChatInterceptor) ContentInterceptor(content []byte, state interceptor2
 }
 
 // ChunkInterceptor intercepts chunks for streaming responses
-func (oi *ChatInterceptor) ChunkInterceptor(chunk []byte, state interceptor2.State) ([]byte, error) {
+func (oi *ChatInterceptor) ChunkInterceptor(chunk []byte, state interceptor.State) ([]byte, error) {
 	openAIState, _ := state.(*chatState)
 
 	// OpenAI Server-Sent Events (SSE) format: data: {...}
@@ -194,6 +243,27 @@ func (oi *ChatInterceptor) ChunkInterceptor(chunk []byte, state interceptor2.Sta
 				if choice.Delta.Role != "" {
 					openAIState.response.Choices[choice.Index].Message.Role = choice.Delta.Role
 				}
+				if len(choice.Delta.ToolCalls) > 0 {
+					if openAIState.response.Choices[choice.Index].Message.ToolCalls == nil {
+						openAIState.response.Choices[choice.Index].Message.ToolCalls = make([]chatToolCall, len(choice.Delta.ToolCalls))
+					}
+					for i, tc := range choice.Delta.ToolCalls {
+						if i >= len(openAIState.response.Choices[choice.Index].Message.ToolCalls) {
+							openAIState.response.Choices[choice.Index].Message.ToolCalls = append(openAIState.response.Choices[choice.Index].Message.ToolCalls, tc)
+						} else {
+							if tc.ID != "" {
+								openAIState.response.Choices[choice.Index].Message.ToolCalls[i].ID = tc.ID
+							}
+							if tc.Type != "" {
+								openAIState.response.Choices[choice.Index].Message.ToolCalls[i].Type = tc.Type
+							}
+							if tc.Function.Name != "" {
+								openAIState.response.Choices[choice.Index].Message.ToolCalls[i].Function.Name = tc.Function.Name
+							}
+							openAIState.response.Choices[choice.Index].Message.ToolCalls[i].Function.Arguments += tc.Function.Arguments
+						}
+					}
+				}
 				if choice.FinishReason != "" {
 					openAIState.response.Choices[choice.Index].FinishReason = choice.FinishReason
 				}
@@ -210,7 +280,7 @@ func (oi *ChatInterceptor) ChunkInterceptor(chunk []byte, state interceptor2.Sta
 }
 
 // OnComplete handles completion of the request
-func (oi *ChatInterceptor) OnComplete(state interceptor2.State) {
+func (oi *ChatInterceptor) OnComplete(state interceptor.State) {
 	openAIState, _ := state.(*chatState)
 
 	openAIState.endTime = time.Now()
@@ -222,7 +292,7 @@ func (oi *ChatInterceptor) OnComplete(state interceptor2.State) {
 }
 
 // OnError handles errors during request processing
-func (oi *ChatInterceptor) OnError(state interceptor2.State, err error) {
+func (oi *ChatInterceptor) OnError(state interceptor.State, err error) {
 	openAIState, _ := state.(*chatState)
 	openAIState.endTime = time.Now()
 	logrus.WithError(err).Warningf("[%s] Error occurred", oi.Name)
@@ -247,11 +317,20 @@ func (oi *ChatInterceptor) saveLog(openAIState *chatState) {
 
 		history := make([]storage.SimpleMessage, len(openAIState.request.Messages))
 		for i, m := range openAIState.request.Messages {
+			metadata := make(map[string]any)
+			if len(m.ToolCalls) > 0 {
+				metadata["tool_calls"] = m.ToolCalls
+			}
+			if m.ToolCallID != "" {
+				metadata["tool_call_id"] = m.ToolCallID
+			}
+
 			history[i] = storage.SimpleMessage{
 				Role:       m.Role,
 				Content:    m.Content,
 				Model:      openAIState.request.Model,
 				ClientHost: openAIState.clientHost,
+				Metadata:   metadata,
 			}
 		}
 
@@ -259,6 +338,11 @@ func (oi *ChatInterceptor) saveLog(openAIState *chatState) {
 		var assistantMsg storage.SimpleMessage
 		if len(openAIState.response.Choices) > 0 {
 			choice := openAIState.response.Choices[0]
+			metadata := make(map[string]any)
+			if len(choice.Message.ToolCalls) > 0 {
+				metadata["tool_calls"] = choice.Message.ToolCalls
+			}
+
 			assistantMsg = storage.SimpleMessage{
 				Role:             choice.Message.Role,
 				Content:          choice.Message.Content,
@@ -267,6 +351,7 @@ func (oi *ChatInterceptor) saveLog(openAIState *chatState) {
 				CompletionTokens: openAIState.response.Usage.CompletionTokens,
 				EvalDuration:     openAIState.endTime.Sub(openAIState.startTime),
 				UpstreamHost:     openAIState.upstreamHost,
+				Metadata:         metadata,
 			}
 			if assistantMsg.Role == "" {
 				assistantMsg.Role = "assistant"
