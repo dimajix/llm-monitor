@@ -14,11 +14,10 @@
       <v-list lines="three">
         <template v-if="!search">
           <template v-for="c in conversations" :key="c.id">
-            <chat-message
+            <conversation-list-item
               v-if="c.first_message"
               :message="c.first_message"
               :request-type="c.request_type"
-              clickable
               @click="goDetail(c.id)"
             >
               <template #append-info>
@@ -27,10 +26,11 @@
                     <v-chip
                       v-bind="props"
                       color="primary"
-                      inline
+                      size="x-small"
+                      variant="tonal"
                       class="ml-2"
                     >
-                      <v-icon icon="$source-branch" size="small"></v-icon>
+                      <v-icon icon="$source-branch" size="12" start></v-icon>
                       {{ c.branch_count }}
                     </v-chip>
                   </template>
@@ -40,29 +40,29 @@
                     <v-chip
                       v-bind="props"
                       color="secondary"
-                      inline
+                      size="x-small"
+                      variant="tonal"
                       class="ml-2"
                     >
-                      <v-icon icon="$wrench" size="small"></v-icon>
+                      <v-icon icon="$wrench" size="12" start></v-icon>
                       {{ c.tool_call_count }}
                     </v-chip>
                   </template>
                 </v-tooltip>
                 <v-tooltip v-if="c.system_prompt" text="System prompt present">
                   <template #activator="{ props }">
-                    <v-icon v-bind="props" size="small" color="grey" class="ml-2" icon="$robot-industrial"></v-icon>
+                    <v-icon v-bind="props" size="14" color="grey" class="ml-2" icon="$robot-industrial"></v-icon>
                   </template>
                 </v-tooltip>
               </template>
-            </chat-message>
+            </conversation-list-item>
           </template>
         </template>
         <template v-else>
-          <chat-message
+          <conversation-list-item
             v-for="m in foundMessages"
             :key="m.id"
             :message="m"
-            clickable
             @click="goMessageDetail(m)"
           />
           <v-list-item v-if="!loading && foundMessages.length === 0">
@@ -86,7 +86,7 @@
 import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { listConversations, searchMessages, type ConversationOverview, type Message } from '../services/api'
-import ChatMessage from '../components/ChatMessage.vue'
+import ConversationListItem from '../components/ConversationListItem.vue'
 
 const router = useRouter()
 

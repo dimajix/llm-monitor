@@ -1,6 +1,6 @@
 <template>
-  <v-app>
-    <v-app-bar app color="primary">
+  <v-app :theme="theme.global.name.value">
+    <v-app-bar app color="primary" elevation="1">
       <v-app-bar-title>LLM Monitor</v-app-bar-title>
       <v-spacer />
       <v-btn

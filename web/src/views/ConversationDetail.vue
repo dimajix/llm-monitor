@@ -19,19 +19,23 @@
       </div>
       <v-divider />
 
-      <div class="chat-messages-list py-4">
+      <div class="chat-messages-container pa-4">
         <template v-for="m in visibleMessages" :key="m.id">
-          <chat-message :message="m" full-size bubble>
+          <chat-bubble :message="m">
             <template #append>
-              <div class="d-flex align-center">
-                <v-tooltip v-if="((m.child_branch_ids?.length || 0) > 0) || (m.branch_id !== currentBranchId)" text="Switch branch from here">
-                  <template #activator="{ props }">
-                    <v-btn v-bind="props" size="x-small" icon="$source-branch" color="secondary" variant="elevated" @click="openBranches(m)"></v-btn>
-                  </template>
-                </v-tooltip>
+              <div v-if="((m.child_branch_ids?.length || 0) > 0) || (m.branch_id !== currentBranchId)">
+                <v-btn
+                  size="x-small"
+                  variant="tonal"
+                  color="secondary"
+                  prepend-icon="$source-branch"
+                  @click="openBranches(m)"
+                >
+                  Switch Branch
+                </v-btn>
               </div>
             </template>
-          </chat-message>
+          </chat-bubble>
         </template>
       </div>
 
@@ -68,7 +72,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { getConversationMessages, getBranchHistory, type Message, type ConversationMessages } from '../services/api'
-import ChatMessage from '../components/ChatMessage.vue'
+import ChatBubble from '../components/ChatBubble.vue'
 import RequestType from '../components/RequestType.vue'
 
 const props = defineProps<{
@@ -146,10 +150,9 @@ watch(() => props.initialBranchId, (newId) => {
 
 
 <style scoped>
-.chat-messages-list {
+.chat-messages-container {
   display: flex;
   flex-direction: column;
-  gap: 16px;
 }
 .opacity-70 {
   opacity: 0.7;

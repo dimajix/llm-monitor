@@ -6,7 +6,7 @@ import App from './App.vue'
 import 'vuetify/styles'
 import { createVuetify } from 'vuetify'
 import { aliases, mdi } from 'vuetify/iconsets/mdi-svg'
-import { mdiMagnify, mdiMessageTextOutline, mdiArrowLeft, mdiHistory, mdiAccount, mdiRobot, mdiSourceBranch, mdiThemeLightDark, mdiMemory, mdiTimerOutline, mdiContentCopy, mdiCog, mdiChatOutline, mdiAutoFix, mdiRobotIndustrial, mdiInformationOutline, mdiWrench } from '@mdi/js'
+import { mdiMagnify, mdiMessageTextOutline, mdiArrowLeft, mdiHistory, mdiAccount, mdiRobot, mdiSourceBranch, mdiThemeLightDark, mdiMemory, mdiTimerOutline, mdiContentCopy, mdiCog, mdiChatOutline, mdiAutoFix, mdiRobotIndustrial, mdiInformationOutline, mdiWrench, mdiChevronRight } from '@mdi/js'
 
 import Conversations from './views/Conversations.vue'
 import ConversationDetail from './views/ConversationDetail.vue'
@@ -36,6 +36,7 @@ const vuetify = createVuetify({
       generate: mdiAutoFix,
       'information-outline': mdiInformationOutline,
       'wrench': mdiWrench,
+      'chevron-right': mdiChevronRight,
     },
     sets: { mdi },
   },
