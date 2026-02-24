@@ -10,6 +10,7 @@ export type ConversationOverview = {
   system_prompt?: Message
   first_message?: Message
   branch_count: number
+  tool_call_count: number
 }
 
 export type ConversationMessages = {

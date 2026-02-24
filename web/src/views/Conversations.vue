@@ -25,12 +25,26 @@
                 <v-tooltip v-if="c.branch_count > 1" text="Branches present">
                   <template #activator="{ props }">
                     <v-chip
+                      v-bind="props"
                       color="primary"
                       inline
                       class="ml-2"
                     >
                       <v-icon icon="$source-branch" size="small"></v-icon>
                       {{ c.branch_count }}
+                    </v-chip>
+                  </template>
+                </v-tooltip>
+                <v-tooltip v-if="c.tool_call_count > 0" text="Tool calls present">
+                  <template #activator="{ props }">
+                    <v-chip
+                      v-bind="props"
+                      color="secondary"
+                      inline
+                      class="ml-2"
+                    >
+                      <v-icon icon="$wrench" size="small"></v-icon>
+                      {{ c.tool_call_count }}
                     </v-chip>
                   </template>
                 </v-tooltip>

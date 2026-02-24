@@ -4,6 +4,7 @@
       <v-avatar v-if="bubble" size="32" :color="avatarColor" class="message-avatar">
         <v-icon v-if="message.role === 'user'" icon="$account" size="20"></v-icon>
         <v-icon v-else-if="message.role === 'system'" icon="$robot-industrial" size="20"></v-icon>
+        <v-icon v-else-if="message.role === 'tool'" icon="$wrench" size="20"></v-icon>
         <v-icon v-else icon="$robot" size="20"></v-icon>
       </v-avatar>
 

@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 )
 
@@ -33,7 +34,7 @@ func TestPostgresStorage_Branching(t *testing.T) {
 	}
 
 	// 2. Add two messages
-	m1, err := storage.AddMessage(ctx, "", &Message{BranchID: branch.ID, SimpleMessage: SimpleMessage{Role: "user", Content: "Hello"}})
+	m1, err := storage.AddMessage(ctx, uuid.Nil, &Message{BranchID: branch.ID, SimpleMessage: SimpleMessage{Role: "user", Content: "Hello"}})
 	if err != nil {
 		t.Fatalf("Failed to add message 1: %v", err)
 	}
@@ -61,7 +62,7 @@ func TestPostgresStorage_Branching(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to query branch: %v", err)
 	}
-	if !parentMsgID.Valid || parentMsgID.String != m2.ID {
+	if !parentMsgID.Valid || parentMsgID.String != m2.ID.String() {
 		t.Errorf("New branch parent message ID expected %s, got %v", m2.ID, parentMsgID)
 	}
 
@@ -101,7 +102,7 @@ func TestPostgresStorage_Branching(t *testing.T) {
 		t.Errorf("Expected 3 messages in new branch history, got %d", len(historyNew))
 	}
 	// History should be m1, m2, m4
-	expectedIDs := []string{m1.ID, m2.ID, m4.ID}
+	expectedIDs := []uuid.UUID{m1.ID, m2.ID, m4.ID}
 	for i, m := range historyNew {
 		if m.ID != expectedIDs[i] {
 			t.Errorf("At index %d: expected message ID %s, got %s", i, expectedIDs[i], m.ID)
@@ -157,6 +158,34 @@ func TestPostgresStorage_Branching(t *testing.T) {
 		} else if overviews[0].FirstMessage.ID != m1.ID {
 			t.Errorf("Expected first message ID %s, got %s", m1.ID, overviews[0].FirstMessage.ID)
 		}
+		if overviews[0].ToolCallCount != 0 {
+			t.Errorf("Expected 0 tool calls, got %d", overviews[0].ToolCallCount)
+		}
+	}
+
+	// 9b. Test ToolCallCount
+	// Add a tool call to m2
+	_, err = storage.db.Exec(`
+		INSERT INTO message_tool_calls (message_id, tool_call_id, type, function_name, function_arguments)
+		VALUES ($1, $2, $3, $4, $5)
+	`, m2.ID, "call_1", "function", "test_func", "{}")
+	if err != nil {
+		t.Fatalf("Failed to add tool call: %v", err)
+	}
+	_, err = storage.db.Exec(`
+		INSERT INTO message_tool_calls (message_id, tool_call_id, type, function_name, function_arguments)
+		VALUES ($1, $2, $3, $4, $5)
+	`, m2.ID, "call_2", "function", "test_func_2", "{}")
+	if err != nil {
+		t.Fatalf("Failed to add tool call: %v", err)
+	}
+
+	overviews, err = storage.ListConversations(ctx, Pagination{Limit: 1000, Offset: 0})
+	if err != nil {
+		t.Fatalf("ListConversations failed: %v", err)
+	}
+	if overviews[0].ToolCallCount != 2 {
+		t.Errorf("Expected 2 tool calls, got %d", overviews[0].ToolCallCount)
 	}
 
 	// 10. Test SearchMessages

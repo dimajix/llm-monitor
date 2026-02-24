@@ -317,11 +317,18 @@ func (s *PostgresStorage) ListConversations(ctx context.Context, p Pagination) (
 		SELECT c.id, c.created_at, c.request_type, c.metadata,
 	   			m1.id, m1.conversation_id, m1.branch_id, m1.role, m1.content, m1.model, m1.sequence_number, m1.created_at, m1.child_branch_ids, m1.upstream_status_code, m1.upstream_error, m1.prompt_tokens, m1.completion_tokens, m1.prompt_eval_duration, m1.eval_duration, m1.parent_message_id, m1.client_host, m1.upstream_host, m1.metadata,
 	   			m2.id, m2.conversation_id, m2.branch_id, m2.role, m2.content, m2.model, m2.sequence_number, m2.created_at, m2.child_branch_ids, m2.upstream_status_code, m2.upstream_error, m2.prompt_tokens, m2.completion_tokens, m2.prompt_eval_duration, m2.eval_duration, m2.parent_message_id, m2.client_host, m2.upstream_host, m2.metadata,
-	   			COALESCE(b.branch_count, 0)
+	   			COALESCE(b.branch_count, 0),
+	   			COALESCE(tc.tool_call_count, 0)
 		FROM conversations c
 		LEFT JOIN LATERAL (
 			SELECT COUNT(*) as branch_count FROM branches b WHERE b.conversation_id = c.id
 		) b ON true
+		LEFT JOIN LATERAL (
+			SELECT COUNT(*) as tool_call_count 
+			FROM message_tool_calls tc
+			JOIN messages m ON m.id = tc.message_id
+			WHERE m.conversation_id = c.id
+		) tc ON true
 		LEFT JOIN LATERAL (
 			SELECT * FROM messages m 
 			WHERE m.conversation_id = c.id AND m.role != 'system'
@@ -363,17 +370,20 @@ func (s *PostgresStorage) ListConversations(ctx context.Context, p Pagination) (
 		var m2PromptEvalDuration, m2EvalDuration sql.NullInt64
 		var m2Metadata []byte
 		var branchCount int
+		var toolCallCount int
 
 		err := rows.Scan(
 			&o.ID, &o.CreatedAt, &o.RequestType, &metadata,
 			&m1ID, &m1ConvID, &m1BranchID, &m1Role, &m1Content, &m1Model, &m1Seq, &m1CreatedAt, pq.Array(&m1ChildBranchIDs), &m1Status, &m1Error, &m1PromptTokens, &m1CompletionTokens, &m1PromptEvalDuration, &m1EvalDuration, &m1ParentID, &m1ClientHost, &m1UpstreamHost, &m1Metadata,
 			&m2ID, &m2ConvID, &m2BranchID, &m2Role, &m2Content, &m2Model, &m2Seq, &m2CreatedAt, pq.Array(&m2ChildBranchIDs), &m2Status, &m2Error, &m2PromptTokens, &m2CompletionTokens, &m2PromptEvalDuration, &m2EvalDuration, &m2ParentID, &m2ClientHost, &m2UpstreamHost, &m2Metadata,
 			&branchCount,
+			&toolCallCount,
 		)
 		if err != nil {
 			return nil, err
 		}
 		o.BranchCount = branchCount
+		o.ToolCallCount = toolCallCount
 
 		if metadata != nil {
 			if err := json.Unmarshal(metadata, &o.Metadata); err != nil {
