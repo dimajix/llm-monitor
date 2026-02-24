@@ -23,6 +23,22 @@ export type ConversationMessages = {
   messages: Message[]
 }
 
+export type Tool = {
+  id: string
+  name: string
+  description?: string
+  parameters?: any
+}
+
+export type ToolCall = {
+  id: string
+  type: string
+  function: {
+    name: string
+    arguments: string
+  }
+}
+
 export type Message = {
   id: string
   conversation_id: string
@@ -40,6 +56,9 @@ export type Message = {
   upstream_error?: string | null
   parent_message_id?: string | null
   child_branch_ids?: string[]
+  tools?: Tool[]
+  tool_calls?: ToolCall[]
+  tool_call_id?: string
 }
 
 export async function listConversations(limit = 20, offset = 0) {

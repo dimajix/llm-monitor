@@ -35,6 +35,28 @@
           <div class="bubble-body">
             <div class="message-text" :class="{ 'full-size': fullSize }" v-html="renderedContent"></div>
 
+            <div v-if="message.tool_calls && message.tool_calls.length > 0" class="tool-calls mt-3">
+              <div v-for="tc in message.tool_calls" :key="tc.id" class="tool-call mb-2">
+                <v-card variant="outlined" density="compact" class="tool-call-card">
+                  <v-card-item class="py-1 px-3">
+                    <template v-slot:prepend>
+                      <v-icon icon="$wrench" size="small" color="primary" class="mr-2"></v-icon>
+                    </template>
+                    <v-card-title class="text-subtitle-2 font-weight-bold d-flex align-center">
+                      {{ tc.function.name }}
+                    </v-card-title>
+                  </v-card-item>
+
+                  <v-card-text class="py-1 px-3">
+                    <div v-if="getToolDescription(tc.function.name)" class="text-caption text-medium-emphasis mb-1">
+                      {{ getToolDescription(tc.function.name) }}
+                    </div>
+                    <pre class="tool-args text-caption pa-2 rounded-sm bg-grey-lighten-4">{{ formatArguments(tc.function.arguments) }}</pre>
+                  </v-card-text>
+                </v-card>
+              </div>
+            </div>
+
             <div v-if="hasMetadata" class="bubble-footer mt-2 pt-1 d-flex flex-wrap align-center text-caption text-grey">
               <v-icon start icon="$information-outline" size="12" class="mr-1"></v-icon>
               {{ formattedMetrics }}
@@ -175,6 +197,18 @@ function handleClick() {
   }
 }
 
+function getToolDescription(name: string): string | undefined {
+  return props.message.tools?.find(t => t.name === name)?.description
+}
+
+function formatArguments(args: string): string {
+  try {
+    return JSON.stringify(JSON.parse(args), null, 2)
+  } catch (_) {
+    return args
+  }
+}
+
 async function copyToClipboard() {
   try {
     await navigator.clipboard.writeText(props.message.content || '')
@@ -304,6 +338,18 @@ async function copyToClipboard() {
 .message-text :deep(pre code) {
   padding: 0;
   background-color: transparent;
+}
+
+.tool-call-card {
+  border-color: rgba(var(--v-theme-primary), 0.2);
+  background-color: rgba(var(--v-theme-primary), 0.02);
+}
+
+.tool-args {
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-x: auto;
+  font-family: monospace;
 }
 
 .copy-button-container {
