@@ -1,10 +1,11 @@
     # Build web stage
 FROM node:20-alpine AS web-builder
+
 WORKDIR /web
-COPY web/package*.json ./
-RUN npm install
+
 COPY web/ ./
-RUN npm run build
+RUN npm install &&  npm run build
+
 
 # Build stage
 FROM golang:1.25-alpine AS builder
@@ -46,7 +47,7 @@ RUN chown -R appuser:appgroup /app
 USER appuser
 
 # Expose the port the app runs on
-EXPOSE 8080
+EXPOSE 8080 8081
 
 # Command to run the application
 CMD ["./llm-monitor-proxy", "-c", "/app/config/config.yaml"]
